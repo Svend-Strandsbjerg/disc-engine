@@ -1,10 +1,10 @@
-import { assertVersionEditable } from '@disc-engine/domain';
+import { assertVersionEditable } from '@disc-foundation/domain';
 import type {
   AssessmentReadRepository,
   AssessmentWriteRepository,
 } from '../ports/repositories.js';
-import type { AssessmentVersion } from '@disc-engine/domain';
-import type { UUID } from '@disc-engine/shared';
+import type { AssessmentVersion } from '@disc-foundation/domain';
+import type { UUID } from '@disc-foundation/shared';
 
 export const updateDraftVersion = async (
   deps: {

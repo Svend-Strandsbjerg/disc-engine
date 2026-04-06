@@ -4,9 +4,9 @@ import type {
   AssessmentSessionRepository,
   ResponseRepository,
   ResultRepository,
-} from '@disc-engine/application';
-import type { AssessmentSession, ProfileResult, Response } from '@disc-engine/domain';
-import type { UUID } from '@disc-engine/shared';
+} from '@disc-foundation/application';
+import type { AssessmentSession, ProfileResult, Response } from '@disc-foundation/domain';
+import type { UUID } from '@disc-foundation/shared';
 
 const sessions = new Map<UUID, AssessmentSession>();
 const responses = new Map<UUID, Response[]>();

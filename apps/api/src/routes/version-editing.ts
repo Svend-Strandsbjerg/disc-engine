@@ -13,7 +13,7 @@ import {
   updateQuestionOption,
   updateScoreDimension,
   updateScoringRule,
-} from '@disc-engine/application';
+} from '@disc-foundation/application';
 
 const versionParams = z.object({ id: z.string().uuid() });
 const entityParams = z.object({ id: z.string().uuid() });

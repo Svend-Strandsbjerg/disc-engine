@@ -6,7 +6,7 @@ import {
   getSessionDetail,
   listResultsByAssessmentDefinition,
   listResultsByAssessmentVersion,
-} from '@disc-engine/application';
+} from '@disc-foundation/application';
 
 const resultParamsSchema = z.object({ resultId: z.string().uuid() });
 const sessionParamsSchema = z.object({ sessionId: z.string().uuid() });

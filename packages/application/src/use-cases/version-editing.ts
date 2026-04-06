@@ -3,7 +3,7 @@ import type {
   AssessmentReadRepository,
   AssessmentWriteRepository,
 } from '../ports/repositories.js';
-import type { UUID } from '@disc-engine/shared';
+import type { UUID } from '@disc-foundation/shared';
 
 const assertDraft = async (
   assessmentReadRepository: AssessmentReadRepository,

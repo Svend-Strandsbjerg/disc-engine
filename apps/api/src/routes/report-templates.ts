@@ -14,7 +14,7 @@ import {
   updateInterpretationRule,
   updateReportSection,
   validateReportTemplateVersion,
-} from '@disc-engine/application';
+} from '@disc-foundation/application';
 
 const createTemplateSchema = z.object({
   key: z.string().min(2),

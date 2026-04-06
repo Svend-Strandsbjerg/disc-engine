@@ -168,7 +168,7 @@ Update `DATABASE_URL` in `packages/infrastructure/.env` for your local PostgreSQ
 ### 3) Generate Prisma client
 
 ```bash
-pnpm --filter @disc-engine/infrastructure prisma:generate
+pnpm --filter @disc-foundation/infrastructure prisma:generate
 ```
 
 ### 4) Run API

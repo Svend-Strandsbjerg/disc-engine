@@ -2,7 +2,7 @@ import type {
   AssessmentSessionRepository,
   ResponseRepository,
 } from '../ports/repositories.js';
-import type { UUID } from '@disc-engine/shared';
+import type { UUID } from '@disc-foundation/shared';
 
 export const submitResponses = async (
   deps: {

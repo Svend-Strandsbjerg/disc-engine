@@ -1,5 +1,5 @@
 import type { ResultQueryRepository } from '../ports/repositories.js';
-import type { UUID } from '@disc-engine/shared';
+import type { UUID } from '@disc-foundation/shared';
 
 export const getResultById = async (
   deps: { resultQueryRepository: ResultQueryRepository },
