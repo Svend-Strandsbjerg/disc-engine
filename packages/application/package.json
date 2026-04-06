@@ -12,5 +12,11 @@
   "dependencies": {
     "@disc-foundation/domain": "workspace:*",
     "@disc-foundation/shared": "workspace:*"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   }
 }

@@ -19,5 +19,11 @@
   },
   "devDependencies": {
     "tsx": "^4.20.6"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
+    }
   }
 }
