@@ -2,7 +2,7 @@ import type {
   AssessmentReadRepository,
   AssessmentSessionRepository,
 } from '../ports/repositories.js';
-import type { UUID } from '@disc-engine/shared';
+import type { UUID } from '@disc-foundation/shared';
 
 export const createSession = async (
   deps: {

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { createApiKey, listApiKeys } from '@disc-engine/application';
+import { createApiKey, listApiKeys } from '@disc-foundation/application';
 
 const createApiKeySchema = z.object({
   name: z.string().min(2),

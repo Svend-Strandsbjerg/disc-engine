@@ -2,7 +2,7 @@ import type {
   GeneratedReportRepository,
   ReportTemplateReadRepository,
   ReportTemplateWriteRepository,
-} from '@disc-engine/application';
+} from '@disc-foundation/application';
 import type {
   GeneratedReport,
   InterpretationCondition,
@@ -12,8 +12,8 @@ import type {
   ReportSection,
   ReportTemplate,
   ReportTemplateDefinition,
-} from '@disc-engine/domain';
-import type { UUID } from '@disc-engine/shared';
+} from '@disc-foundation/domain';
+import type { UUID } from '@disc-foundation/shared';
 import { prisma } from '../services/prisma.js';
 import { getAccessContext } from '../services/access-context.js';
 

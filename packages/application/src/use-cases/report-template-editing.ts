@@ -3,7 +3,7 @@ import type {
   ReportTemplateReadRepository,
   ReportTemplateWriteRepository,
 } from '../ports/repositories.js';
-import type { UUID } from '@disc-engine/shared';
+import type { UUID } from '@disc-foundation/shared';
 
 const assertDraftTemplate = async (
   repo: ReportTemplateReadRepository,

@@ -1,4 +1,4 @@
-import type { AuditableEvent, UUID } from '@disc-engine/shared';
+import type { AuditableEvent, UUID } from '@disc-foundation/shared';
 
 export type AssessmentVersionStatus = 'draft' | 'published';
 

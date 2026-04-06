@@ -2,14 +2,14 @@ import {
   createDefaultScoringEngine,
   type ProfileResult,
   type ScoringEngine,
-} from '@disc-engine/domain';
+} from '@disc-foundation/domain';
 import type {
   AssessmentReadRepository,
   AssessmentSessionRepository,
   ResponseRepository,
   ResultRepository,
 } from '../ports/repositories.js';
-import type { UUID } from '@disc-engine/shared';
+import type { UUID } from '@disc-foundation/shared';
 
 export const calculateResult = async (
   deps: {

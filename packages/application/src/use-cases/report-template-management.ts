@@ -2,12 +2,12 @@ import { z } from 'zod';
 import {
   validateReportTemplateForPublish,
   type ReportTemplateValidationResult,
-} from '@disc-engine/domain';
+} from '@disc-foundation/domain';
 import type {
   ReportTemplateReadRepository,
   ReportTemplateWriteRepository,
 } from '../ports/repositories.js';
-import type { UUID } from '@disc-engine/shared';
+import type { UUID } from '@disc-foundation/shared';
 
 const createTemplateDefinitionSchema = z.object({
   key: z.string().min(2),

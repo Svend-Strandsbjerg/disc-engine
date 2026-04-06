@@ -1,11 +1,11 @@
-import { generateReport, type GeneratedReport } from '@disc-engine/domain';
+import { generateReport, type GeneratedReport } from '@disc-foundation/domain';
 import type {
   AssessmentSessionRepository,
   GeneratedReportRepository,
   ReportTemplateReadRepository,
   ResultRepository,
 } from '../ports/repositories.js';
-import type { UUID } from '@disc-engine/shared';
+import type { UUID } from '@disc-foundation/shared';
 
 export const generateReportForSession = async (
   deps: {

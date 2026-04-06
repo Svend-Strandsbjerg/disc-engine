@@ -1,5 +1,5 @@
 {
-  "name": "@disc-engine/infrastructure",
+  "name": "@disc-foundation/infrastructure",
   "version": "0.1.0",
   "type": "module",
   "main": "dist/index.js",
@@ -11,9 +11,9 @@
     "prisma:generate": "prisma generate --schema prisma/schema.prisma"
   },
   "dependencies": {
-    "@disc-engine/application": "workspace:*",
-    "@disc-engine/domain": "workspace:*",
-    "@disc-engine/shared": "workspace:*",
+    "@disc-foundation/application": "workspace:*",
+    "@disc-foundation/domain": "workspace:*",
+    "@disc-foundation/shared": "workspace:*",
     "@prisma/client": "^6.16.2"
   },
   "devDependencies": {

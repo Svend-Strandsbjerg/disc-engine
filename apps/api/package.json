@@ -1,5 +1,5 @@
 {
-  "name": "@disc-engine/api",
+  "name": "@disc-foundation/api",
   "version": "0.1.0",
   "type": "module",
   "main": "dist/server.js",
@@ -12,8 +12,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@disc-engine/application": "workspace:*",
-    "@disc-engine/infrastructure": "workspace:*",
+    "@disc-foundation/application": "workspace:*",
+    "@disc-foundation/infrastructure": "workspace:*",
     "fastify": "^5.6.0",
     "zod": "^4.1.8"
   },
