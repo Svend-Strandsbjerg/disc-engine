@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 import type {
   AssessmentReadRepository,
   AssessmentWriteRepository,
-} from '@disc-foundation/application';
+} from '@disc-engine/application';
 import type {
   AssessmentDefinition,
   AssessmentVersion,
@@ -11,8 +11,8 @@ import type {
   QuestionOption,
   ScoreDimension,
   ScoringRule,
-} from '@disc-foundation/domain';
-import type { UUID } from '@disc-foundation/shared';
+} from '@disc-engine/domain';
+import type { UUID } from '@disc-engine/shared';
 import { prisma } from '../services/prisma.js';
 import { getAccessContext } from '../services/access-context.js';
 

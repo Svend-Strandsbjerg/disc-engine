@@ -13,8 +13,8 @@ import type {
   Response,
   ScoreDimension,
   ScoringRule,
-} from '@disc-foundation/domain';
-import type { UUID } from '@disc-foundation/shared';
+} from '@disc-engine/domain';
+import type { UUID } from '@disc-engine/shared';
 
 export interface AssessmentReadRepository {
   getVersion(versionId: UUID): Promise<AssessmentVersion | null>;

@@ -8,7 +8,7 @@ import {
   getAssessmentVersionById,
   publishAssessmentVersion,
   validateAssessmentVersion,
-} from '@disc-foundation/application';
+} from '@disc-engine/application';
 
 const createAssessmentSchema = z.object({
   key: z.string().min(2),
