@@ -48,7 +48,12 @@ export const registerVersionEditingRoutes = (app: FastifyInstance) => {
           assessmentReadRepository: app.repositories.assessmentReadRepository,
           assessmentWriteRepository: app.repositories.assessmentWriteRepository,
         },
-        { id: params.id, ...body },
+        {
+          id: params.id,
+          assessmentVersionId: body.assessmentVersionId,
+          ...(body.label !== undefined ? { label: body.label } : {}),
+          ...(body.order !== undefined ? { order: body.order } : {}),
+        },
       ),
     );
   });
