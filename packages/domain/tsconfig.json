@@ -3,9 +3,15 @@
   "compilerOptions": {
     "outDir": "dist",
     "declaration": true,
-    "composite": true
+    "composite": true,
+    "declarationMap": true
   },
   "include": [
     "src/**/*.ts"
+  ],
+  "references": [
+    {
+      "path": "../shared"
+    }
   ]
 }
