@@ -1,0 +1,249 @@
+# DISC_FOUNDATION
+
+Monorepo foundation for a reusable, versionable **assessment engine** where specific frameworks are modeled as data, not hardcoded engine behavior.
+
+> Scope of this iteration: backend foundation only. No UI, no auth, no admin panel.
+
+## Tech Stack
+
+- **Monorepo:** pnpm workspace
+- **Language:** TypeScript
+- **Runtime:** Node.js
+- **API:** Fastify (`apps/api`)
+- **Database:** PostgreSQL with Prisma (`packages/infrastructure/prisma`)
+- **Architecture:** Domain / Application / Infrastructure separation
+
+## Repository Structure
+
+```text
+apps/
+  api/                    # Fastify API (transport layer)
+packages/
+  domain/                 # Core entities + pure domain scoring rules/functions
+  application/            # Use-cases and repository ports
+  infrastructure/         # Prisma schema + repository implementations
+  shared/                 # Shared primitives and cross-cutting types
+```
+
+## Version lifecycle
+
+Assessment versions follow a strict lifecycle:
+
+1. **Create draft** (`POST /assessments/:id/versions`)
+2. **Edit draft** (future admin flow; currently through repository/use-case layer)
+3. **Publish** (`POST /versions/:id/publish`)
+
+Publish validation rules are evaluated before publish. The validator returns both blocking **errors** and non-blocking **warnings**:
+
+- publish is blocked when any error exists
+- publish is allowed when only warnings exist
+- checks include dimensions/questions/options/scoring-reference integrity and ordering consistency
+
+On publish:
+
+- `status` becomes `published`
+- `immutableAt` is set
+- version becomes read-only
+
+> TODO: future admin/auth layer should gate all mutating version endpoints and actions.
+
+## Active version resolution
+
+`GET /assessments/:id/active-version` resolves the latest published version by descending `versionNumber` (and `publishedAt` as tie-breaker).
+
+
+## Draft content editing
+
+Draft versions can be edited through dedicated endpoints for dimensions, questions, options, and scoring rules.
+
+Rules:
+
+- only `draft` versions are editable
+- published versions are immutable
+- ordering fields (`order`) are editable for dimensions/questions/options
+- scoring rules must reference valid question/option/dimension data
+- content can be iteratively edited, but publish still validates completeness and references
+
+
+## Publish validation / completeness
+
+`GET /versions/:id/validation` runs a deterministic domain-level completeness check for a version without publishing it.
+
+Validation behavior:
+
+- **Errors** block publish (for example: missing dimensions/questions, broken scoring references, uncovered options, duplicate order values).
+- **Warnings** do not block publish (for example: unused dimensions, low question count, or orphaned/dead scoring rules).
+- `POST /versions/:id/publish` returns validation details on both success and rejection.
+
+Validation logic lives in the domain layer and remains separate from scoring and persistence concerns.
+
+## Runtime session lifecycle (DB-backed)
+
+Runtime flow now persists in PostgreSQL using Prisma repositories:
+
+1. `POST /sessions` creates an `in_progress` session
+2. `POST /responses` upserts responses per `(sessionId, questionId)` while session is `in_progress`
+3. `POST /sessions/:sessionId/calculate-result` calculates score, persists `ProfileResult`, and marks session `completed` in one transaction
+4. Completed sessions are locked for further response submission
+
+`GET /sessions/:sessionId` returns basic session metadata, response count, status, and result presence.
+
+
+## Read-model / reporting layer
+
+Write flow and read flow are intentionally separated:
+
+- **Write flow** handles session creation, response upsert, result calculation, and state transitions.
+- **Read flow** exposes stable DTO/query endpoints for reporting and integrations without coupling to write-side DB entities.
+
+Read endpoints provide:
+
+- result by result id or session id
+- session detail with responses and optional result summary
+- list results by assessment definition/version with lightweight filters (`from`, `to`, `sessionStatus`) and paging (`limit`, `offset`)
+- reporting-ready metadata (`total`, `dimensionKeys`, `scoringVersion`, timestamps)
+
+This prepares future exports/comparisons/integrations without overbuilding analytics.
+
+
+
+## Report template lifecycle
+
+Report templates now follow a draft → published lifecycle similar to assessment versions.
+
+- `POST /report-templates` creates a report template definition.
+- `POST /report-templates/:id/versions` creates a draft template version.
+- Draft versions are editable (`sections`, `interpretation rules`) and publish-time validation runs before locking.
+- `POST /report-templates/versions/:id/publish` sets `status = published` and `immutableAt`.
+- Published versions are immutable and can still be used for report generation.
+- Active template version resolves to the latest published version for a template definition.
+
+Rule behavior:
+- multiple rules may match the same section;
+- outputs are concatenated by `priority` (highest first), then stable id tie-break.
+
+## Report generation model (versioned)
+
+Reports are generated by a dedicated domain report engine and remain separate from scoring.
+
+- `generateReport({ profileResult, reportTemplate })` evaluates rule-based interpretation conditions and produces structured section output.
+- templates are versioned (`name` + `version`) and can optionally be linked to a specific assessment version.
+- templates become immutable after first use (`immutableAt`) so generated report history remains auditable.
+- generated reports persist a full `resultSnapshot` plus resolved section text so downstream exports/integrations remain stable over time.
+
+This keeps reporting backend/domain-driven without UI-coupled hardcoded text and without introducing NLP/AI complexity.
+
+## Scoring model (generic)
+
+Scoring is implemented as a pure domain function:
+
+- `calculateProfileResult({ responses, assessmentVersion })`
+
+How it works (v1):
+
+1. Read dimensions and rules from the loaded assessment version
+2. Apply option-level rule impacts per response
+3. Aggregate raw scores per dimension
+4. Normalize to 0–100 using max raw score
+5. Return auditable payload (`scoreBreakdown`, `totalScores`, `rawResponsesSnapshot`, `auditTrail`, `scoringVersion`)
+
+## Setup
+
+### 1) Install dependencies
+
+```bash
+pnpm install
+```
+
+### 2) Configure environment
+
+```bash
+cp .env.example .env
+cp apps/api/.env.example apps/api/.env
+cp packages/infrastructure/.env.example packages/infrastructure/.env
+```
+
+Update `DATABASE_URL` in `packages/infrastructure/.env` for your local PostgreSQL instance.
+
+### 3) Generate Prisma client
+
+```bash
+pnpm --filter @disc-foundation/infrastructure prisma:generate
+```
+
+### 4) Run API
+
+```bash
+pnpm dev
+```
+
+API defaults to `http://localhost:3000`.
+
+
+## API access layer (v1)
+
+This API is now protected by tenant-scoped API keys.
+
+- Send `x-api-key: <raw_key>` on every request (except `/health`).
+- Keys are stored hashed in DB; raw values are returned once at creation.
+- Every request resolves to a `tenantId` and repositories enforce tenant scoping.
+- Basic in-memory rate limiting is enabled per API key (`RATE_LIMIT_PER_MINUTE`, default `120`).
+
+Tenant model:
+- all core records are tenant-owned (assessments, versions, report templates, sessions, results, generated reports).
+- cross-tenant access is blocked by tenant-scoped repository queries.
+
+Limitations (v1):
+- no user-level auth, OAuth, roles, or distributed rate limiting yet.
+
+## API endpoints
+
+### Access
+
+- `POST /api-keys`
+- `GET /api-keys`
+
+### Management
+
+- `POST /assessments`
+- `POST /assessments/:id/versions`
+- `POST /versions/:id/clone`
+- `GET /versions/:id/validation`
+- `POST /versions/:id/publish`
+- `GET /versions/:id`
+- `GET /assessments/:id/active-version`
+
+### Report templates
+
+- `POST /report-templates`
+- `POST /report-templates/:id/versions`
+- `POST /report-templates/versions/:id/clone`
+- `GET /report-templates/versions/:id/validation`
+- `POST /report-templates/versions/:id/publish`
+- `GET /report-templates/versions/:id`
+- `GET /report-templates/:id/active-version`
+- `POST /report-templates/versions/:id/sections`
+- `PATCH /report-sections/:id`
+- `DELETE /report-sections/:id`
+- `POST /report-templates/versions/:id/rules`
+- `PATCH /interpretation-rules/:id`
+- `DELETE /interpretation-rules/:id`
+
+### Runtime
+
+- `POST /sessions`
+- `GET /sessions/:sessionId`
+- `POST /responses`
+- `POST /sessions/:sessionId/calculate-result`
+- `POST /sessions/:id/generate-report`
+- `GET /reports/:id`
+
+## Workspace scripts
+
+```bash
+pnpm build
+pnpm typecheck
+pnpm lint
+pnpm format
+pnpm dev
+```

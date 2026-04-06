@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "baseUrl": ".",
+    "paths": {
+      "@disc-foundation/shared": ["packages/shared/src/index.ts"],
+      "@disc-foundation/domain": ["packages/domain/src/index.ts"],
+      "@disc-foundation/application": ["packages/application/src/index.ts"],
+      "@disc-foundation/infrastructure": ["packages/infrastructure/src/index.ts"]
+    }
+  }
+}

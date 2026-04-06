@@ -1,0 +1,289 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AssessmentVersionStatus {
+  draft
+  published
+}
+
+enum AssessmentSessionStatus {
+  in_progress
+  completed
+}
+
+enum QuestionType {
+  single_choice
+  multi_choice
+  scale
+  text
+}
+
+enum ReportTemplateStatus {
+  draft
+  published
+}
+
+model Tenant {
+  id         String   @id @default(uuid())
+  name       String
+  externalId String?  @unique
+  createdAt  DateTime @default(now())
+
+  apiKeys                   ApiKey[]
+  assessmentDefinitions     AssessmentDefinition[]
+  assessmentVersions        AssessmentVersion[]
+  reportTemplateDefinitions ReportTemplateDefinition[]
+  reportTemplates           ReportTemplate[]
+  sessions                  AssessmentSession[]
+  profileResults            ProfileResult[]
+  generatedReports          GeneratedReport[]
+}
+
+model ApiKey {
+  id         String   @id @default(uuid())
+  key        String
+  keyPrefix  String   @unique
+  tenantId   String
+  name       String
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+}
+
+model AssessmentDefinition {
+  id          String   @id @default(uuid())
+  tenantId    String
+  key         String
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant   Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  versions AssessmentVersion[]
+  sessions AssessmentSession[]
+
+  @@unique([tenantId, key])
+}
+
+model AssessmentVersion {
+  id                     String   @id @default(uuid())
+  tenantId               String
+  assessmentDefinitionId String
+  versionNumber          Int
+  scoringVersion         String
+  status                 AssessmentVersionStatus @default(draft)
+  questionCount          Int
+  createdAt              DateTime @default(now())
+  publishedAt            DateTime?
+  immutableAt            DateTime?
+
+  tenant               Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  assessmentDefinition AssessmentDefinition @relation(fields: [assessmentDefinitionId], references: [id], onDelete: Restrict)
+  questions            Question[]
+  scoreDimensions      ScoreDimension[]
+  scoringRules         ScoringRule[]
+  sessions             AssessmentSession[]
+  profileResults       ProfileResult[]
+  reportTemplates      ReportTemplate[]
+
+  @@unique([assessmentDefinitionId, versionNumber])
+}
+
+model Question {
+  id                  String   @id @default(uuid())
+  assessmentVersionId String
+  code                String
+  prompt              String
+  type                QuestionType
+  order               Int
+  required            Boolean  @default(true)
+  metadata            Json?
+
+  assessmentVersion AssessmentVersion @relation(fields: [assessmentVersionId], references: [id], onDelete: Restrict)
+  options           QuestionOption[]
+  responses         Response[]
+  scoringRules      ScoringRule[]
+
+  @@unique([assessmentVersionId, code])
+}
+
+model QuestionOption {
+  id         String @id @default(uuid())
+  questionId String
+  code       String
+  label      String
+  order      Int
+  metadata   Json?
+
+  question     Question      @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  scoringRules ScoringRule[]
+
+  @@unique([questionId, code])
+}
+
+model ScoreDimension {
+  id                  String @id @default(uuid())
+  assessmentVersionId String
+  key                 String
+  label               String
+  order               Int
+
+  assessmentVersion AssessmentVersion @relation(fields: [assessmentVersionId], references: [id], onDelete: Restrict)
+
+  @@unique([assessmentVersionId, key])
+}
+
+model ScoringRule {
+  id                  String   @id @default(uuid())
+  assessmentVersionId String
+  questionId          String
+  optionId            String
+  impacts             Json
+  createdAt           DateTime @default(now())
+
+  assessmentVersion AssessmentVersion @relation(fields: [assessmentVersionId], references: [id], onDelete: Restrict)
+  question          Question          @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  option            QuestionOption    @relation(fields: [optionId], references: [id], onDelete: Restrict)
+}
+
+model AssessmentSession {
+  id                     String   @id @default(uuid())
+  tenantId               String
+  assessmentDefinitionId String
+  assessmentVersionId    String
+  status                 AssessmentSessionStatus @default(in_progress)
+  startedAt              DateTime @default(now())
+  completedAt            DateTime?
+  metadata               Json?
+
+  tenant               Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  assessmentDefinition AssessmentDefinition @relation(fields: [assessmentDefinitionId], references: [id], onDelete: Restrict)
+  assessmentVersion    AssessmentVersion    @relation(fields: [assessmentVersionId], references: [id], onDelete: Restrict)
+  responses            Response[]
+  result               ProfileResult?
+  generatedReports     GeneratedReport[]
+}
+
+model Response {
+  id                String   @id @default(uuid())
+  sessionId         String
+  questionId        String
+  selectedOptionIds String[]
+  value             Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  session  AssessmentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  question Question          @relation(fields: [questionId], references: [id], onDelete: Restrict)
+
+  @@unique([sessionId, questionId])
+}
+
+model ProfileResult {
+  id                   String   @id
+  tenantId             String
+  sessionId            String   @unique
+  assessmentVersionId  String
+  scoringVersion       String
+  profileCode          String
+  summary              String?
+  scoreBreakdown       Json
+  totalScores          Json
+  rawResponsesSnapshot Json
+  calculatedAt         DateTime
+  auditTrail           Json
+
+  tenant            Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  session           AssessmentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  assessmentVersion AssessmentVersion @relation(fields: [assessmentVersionId], references: [id], onDelete: Restrict)
+  generatedReports  GeneratedReport[]
+}
+
+model ReportTemplateDefinition {
+  id          String   @id @default(uuid())
+  tenantId    String
+  key         String
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant   Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  versions ReportTemplate[]
+
+  @@unique([tenantId, key])
+}
+
+model ReportTemplate {
+  id                         String   @id @default(uuid())
+  tenantId                   String
+  reportTemplateDefinitionId String
+  versionNumber              Int
+  templateVersion            String
+  status                     ReportTemplateStatus @default(draft)
+  linkedAssessmentVersionId  String?
+  createdAt                  DateTime @default(now())
+  publishedAt                DateTime?
+  immutableAt                DateTime?
+
+  tenant                  Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  definition              ReportTemplateDefinition @relation(fields: [reportTemplateDefinitionId], references: [id], onDelete: Restrict)
+  linkedAssessmentVersion AssessmentVersion?       @relation(fields: [linkedAssessmentVersionId], references: [id], onDelete: SetNull)
+  sections                ReportSection[]
+  interpretationRules     InterpretationRule[]
+  generatedReports        GeneratedReport[]
+
+  @@unique([reportTemplateDefinitionId, versionNumber])
+}
+
+model ReportSection {
+  id         String @id @default(uuid())
+  templateId String
+  key        String
+  title      String
+  order      Int
+
+  template ReportTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, key])
+}
+
+model InterpretationRule {
+  id         String @id @default(uuid())
+  templateId String
+  sectionKey String
+  target     Json
+  condition  Json
+  output     String
+  priority   Int
+
+  template ReportTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+}
+
+model GeneratedReport {
+  id              String   @id
+  tenantId        String
+  sessionId       String
+  templateId      String
+  profileResultId String
+  resultSnapshot  Json
+  sections        Json
+  generatedAt     DateTime
+
+  tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  session       AssessmentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  template      ReportTemplate    @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  profileResult ProfileResult     @relation(fields: [profileResultId], references: [id], onDelete: Restrict)
+
+  @@index([sessionId])
+  @@index([templateId])
+}
