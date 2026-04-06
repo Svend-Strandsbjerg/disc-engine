@@ -7,6 +7,7 @@
   "scripts": {
     "build": "tsc -b tsconfig.json",
     "dev": "tsx watch src/server.ts",
+    "prestart": "pnpm build",
     "start": "node dist/server.js",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
