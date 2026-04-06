@@ -2,8 +2,8 @@ import type {
   ResultQueryRepository,
   ResultReadModel,
   SessionDetailReadModel,
-} from '@disc-foundation/application';
-import type { UUID } from '@disc-foundation/shared';
+} from '@disc-engine/application';
+import type { UUID } from '@disc-engine/shared';
 import { prisma } from '../services/prisma.js';
 import { getAccessContext } from '../services/access-context.js';
 

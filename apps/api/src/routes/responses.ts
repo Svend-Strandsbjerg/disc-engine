@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { submitResponses } from '@disc-foundation/application';
+import { submitResponses } from '@disc-engine/application';
 
 const submitResponsesSchema = z
   .object({

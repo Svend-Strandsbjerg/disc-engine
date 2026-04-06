@@ -1,5 +1,5 @@
 {
-  "name": "@disc-foundation/application",
+  "name": "@disc-engine/application",
   "version": "0.1.0",
   "type": "module",
   "main": "dist/index.js",
@@ -10,7 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@disc-foundation/domain": "workspace:*",
-    "@disc-foundation/shared": "workspace:*"
+    "@disc-engine/domain": "workspace:*",
+    "@disc-engine/shared": "workspace:*"
   }
 }

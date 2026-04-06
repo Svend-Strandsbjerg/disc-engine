@@ -9,7 +9,7 @@ import {
   PrismaResultQueryRepository,
   PrismaResultRepository,
   setAccessContext,
-} from '@disc-foundation/infrastructure';
+} from '@disc-engine/infrastructure';
 import { registerApiKeyRoutes } from './routes/api-keys.js';
 import { registerAssessmentRoutes } from './routes/assessments.js';
 import { registerManagementRoutes } from './routes/management.js';

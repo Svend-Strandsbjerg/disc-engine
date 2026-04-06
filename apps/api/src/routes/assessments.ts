@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { getAssessmentVersionMetadata } from '@disc-foundation/application';
+import { getAssessmentVersionMetadata } from '@disc-engine/application';
 
 export const registerAssessmentRoutes = (app: FastifyInstance) => {
   app.get('/assessment-versions/:versionId', async (request, reply) => {

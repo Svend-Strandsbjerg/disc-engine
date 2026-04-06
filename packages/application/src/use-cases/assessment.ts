@@ -1,5 +1,5 @@
 import type { AssessmentReadRepository } from '../ports/repositories.js';
-import type { UUID } from '@disc-foundation/shared';
+import type { UUID } from '@disc-engine/shared';
 
 export const getAssessmentVersionMetadata = async (
   deps: { assessmentReadRepository: AssessmentReadRepository },

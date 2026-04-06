@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { createSession, getSession } from '@disc-foundation/application';
+import { createSession, getSession } from '@disc-engine/application';
 
 const createSessionSchema = z.object({
   assessmentVersionId: z.string().uuid(),

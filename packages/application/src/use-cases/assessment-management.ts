@@ -2,12 +2,12 @@ import { z } from 'zod';
 import {
   validateAssessmentVersionForPublish,
   type AssessmentVersionValidationResult,
-} from '@disc-foundation/domain';
+} from '@disc-engine/domain';
 import type {
   AssessmentReadRepository,
   AssessmentWriteRepository,
 } from '../ports/repositories.js';
-import type { UUID } from '@disc-foundation/shared';
+import type { UUID } from '@disc-engine/shared';
 
 const createAssessmentDefinitionSchema = z.object({
   key: z.string().min(2),

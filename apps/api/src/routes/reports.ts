@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { generateReportForSession, getGeneratedReportById } from '@disc-foundation/application';
+import { generateReportForSession, getGeneratedReportById } from '@disc-engine/application';
 
 const generateReportSchema = z.object({
   templateId: z.string().uuid(),

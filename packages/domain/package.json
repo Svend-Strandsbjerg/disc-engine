@@ -1,5 +1,5 @@
 {
-  "name": "@disc-foundation/domain",
+  "name": "@disc-engine/domain",
   "version": "0.1.0",
   "type": "module",
   "main": "dist/index.js",
@@ -11,7 +11,7 @@
     "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {
-    "@disc-foundation/shared": "workspace:*"
+    "@disc-engine/shared": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.20.6"

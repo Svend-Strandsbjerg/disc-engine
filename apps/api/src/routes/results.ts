@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { calculateResult } from '@disc-foundation/application';
+import { calculateResult } from '@disc-engine/application';
 
 export const registerResultRoutes = (app: FastifyInstance) => {
   app.post('/sessions/:sessionId/calculate-result', async (request, reply) => {
