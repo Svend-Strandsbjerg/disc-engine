@@ -29,7 +29,11 @@ export const registerManagementRoutes = (app: FastifyInstance) => {
     const body = createAssessmentSchema.parse(request.body);
     const created = await createAssessmentDefinition(
       { assessmentWriteRepository: app.repositories.assessmentWriteRepository },
-      body,
+      {
+        key: body.key,
+        name: body.name,
+        ...(body.description !== undefined ? { description: body.description } : {}),
+      },
     );
 
     return reply.code(201).send(created);

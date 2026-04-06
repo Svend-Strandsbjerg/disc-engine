@@ -36,18 +36,26 @@ export const createReportTemplate = async (
   deps: { reportTemplateWriteRepository: ReportTemplateWriteRepository },
   input: { key: string; name: string; description?: string },
 ) => {
-  return deps.reportTemplateWriteRepository.createReportTemplateDefinition(
-    createTemplateDefinitionSchema.parse(input),
-  );
+  const parsed = createTemplateDefinitionSchema.parse(input);
+  return deps.reportTemplateWriteRepository.createReportTemplateDefinition({
+    key: parsed.key,
+    name: parsed.name,
+    ...(parsed.description !== undefined ? { description: parsed.description } : {}),
+  });
 };
 
 export const createReportTemplateVersion = async (
   deps: { reportTemplateWriteRepository: ReportTemplateWriteRepository },
   input: { reportTemplateDefinitionId: UUID; templateVersion: string; linkedAssessmentVersionId?: UUID },
 ) => {
-  return deps.reportTemplateWriteRepository.createReportTemplateVersionDraft(
-    createTemplateVersionSchema.parse(input),
-  );
+  const parsed = createTemplateVersionSchema.parse(input);
+  return deps.reportTemplateWriteRepository.createReportTemplateVersionDraft({
+    reportTemplateDefinitionId: parsed.reportTemplateDefinitionId,
+    templateVersion: parsed.templateVersion,
+    ...(parsed.linkedAssessmentVersionId !== undefined
+      ? { linkedAssessmentVersionId: parsed.linkedAssessmentVersionId }
+      : {}),
+  });
 };
 
 export const cloneReportTemplateVersion = async (

@@ -22,7 +22,7 @@ export class InMemoryAssessmentSessionRepository implements AssessmentSessionRep
       assessmentVersionId: input.assessmentVersionId,
       status: 'in_progress',
       startedAt: new Date(),
-      metadata: input.metadata,
+      ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
     };
     sessions.set(session.id, session);
     return session;

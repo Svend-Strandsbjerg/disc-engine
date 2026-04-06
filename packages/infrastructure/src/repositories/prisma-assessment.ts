@@ -29,6 +29,13 @@ type VersionRecord = Prisma.AssessmentVersionGetPayload<{ include: typeof versio
 
 const getTenantId = (): string => getAccessContext().tenantId;
 
+const toInputJsonValue = (value: unknown): Prisma.InputJsonValue => value as Prisma.InputJsonValue;
+
+const toOptionalJsonField = (
+  value: Record<string, unknown> | undefined,
+): { metadata?: Prisma.NullableJsonNullValueInput | Prisma.InputJsonValue } =>
+  value !== undefined ? { metadata: toInputJsonValue(value) } : {};
+
 const parseImpacts = (value: Prisma.JsonValue): DimensionImpact[] => {
   if (!Array.isArray(value)) return [];
   return value
@@ -209,7 +216,7 @@ export class PrismaAssessmentRepository implements AssessmentReadRepository, Ass
             type: question.type,
             order: question.order,
             required: question.required,
-            metadata: question.metadata,
+            ...(question.metadata !== null ? { metadata: toInputJsonValue(question.metadata) } : {}),
           },
         });
         questionMap.set(question.id, q.id);
@@ -221,7 +228,7 @@ export class PrismaAssessmentRepository implements AssessmentReadRepository, Ass
               code: option.code,
               label: option.label,
               order: option.order,
-              metadata: option.metadata,
+              ...(option.metadata !== null ? { metadata: toInputJsonValue(option.metadata) } : {}),
             },
           });
           optionMap.set(option.id, o.id);
@@ -238,7 +245,7 @@ export class PrismaAssessmentRepository implements AssessmentReadRepository, Ass
             assessmentVersionId: cloned.id,
             questionId,
             optionId,
-            impacts: rule.impacts,
+            impacts: toInputJsonValue(rule.impacts),
           },
         });
       }
@@ -348,7 +355,7 @@ export class PrismaAssessmentRepository implements AssessmentReadRepository, Ass
           type: input.type,
           order: input.order,
           required: input.required,
-          metadata: input.metadata,
+          ...toOptionalJsonField(input.metadata),
         },
       });
       await syncQuestionCount(tx, input.assessmentVersionId);
@@ -388,7 +395,7 @@ export class PrismaAssessmentRepository implements AssessmentReadRepository, Ass
         ...(input.type !== undefined ? { type: input.type } : {}),
         ...(input.order !== undefined ? { order: input.order } : {}),
         ...(input.required !== undefined ? { required: input.required } : {}),
-        ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
+        ...(input.metadata !== undefined ? { metadata: toInputJsonValue(input.metadata) } : {}),
       },
       include: { options: { orderBy: { order: 'asc' } } },
     });
@@ -443,7 +450,15 @@ export class PrismaAssessmentRepository implements AssessmentReadRepository, Ass
     if (!question) throw new Error('Question not found');
     await assertDraftVersion(question.assessmentVersionId);
 
-    const created = await prisma.questionOption.create({ data: input });
+    const created = await prisma.questionOption.create({
+      data: {
+        questionId: input.questionId,
+        code: input.code,
+        label: input.label,
+        order: input.order,
+        ...toOptionalJsonField(input.metadata),
+      },
+    });
     return {
       id: created.id,
       questionId: created.questionId,
@@ -472,7 +487,7 @@ export class PrismaAssessmentRepository implements AssessmentReadRepository, Ass
       data: {
         ...(input.label !== undefined ? { label: input.label } : {}),
         ...(input.order !== undefined ? { order: input.order } : {}),
-        ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
+        ...(input.metadata !== undefined ? { metadata: toInputJsonValue(input.metadata) } : {}),
       },
     });
 
@@ -512,7 +527,7 @@ export class PrismaAssessmentRepository implements AssessmentReadRepository, Ass
         assessmentVersionId: input.assessmentVersionId,
         questionId: input.questionId,
         optionId: input.optionId,
-        impacts: input.impacts,
+        impacts: toInputJsonValue(input.impacts),
       },
     });
 
@@ -538,9 +553,9 @@ export class PrismaAssessmentRepository implements AssessmentReadRepository, Ass
     const updated = await prisma.scoringRule.update({
       where: { id: input.id },
       data: {
-        ...(input.impacts !== undefined ? { impacts: input.impacts } : {}),
-        ...(input.questionId !== undefined ? { questionId: input.questionId } : {}),
-        ...(input.optionId !== undefined ? { optionId: input.optionId } : {}),
+        ...(input.impacts !== undefined ? { impacts: toInputJsonValue(input.impacts) } : {}),
+        ...(input.questionId !== undefined ? { question: { connect: { id: input.questionId } } } : {}),
+        ...(input.optionId !== undefined ? { option: { connect: { id: input.optionId } } } : {}),
       },
     });
 
