@@ -18,5 +18,11 @@
   },
   "devDependencies": {
     "prisma": "^6.16.2"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   }
 }
