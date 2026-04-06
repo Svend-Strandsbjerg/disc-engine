@@ -11,7 +11,8 @@
   },
   "dependencies": {
     "@disc-foundation/domain": "workspace:*",
-    "@disc-foundation/shared": "workspace:*"
+    "@disc-foundation/shared": "workspace:*",
+    "zod": "^4.1.8"
   },
   "exports": {
     ".": {
