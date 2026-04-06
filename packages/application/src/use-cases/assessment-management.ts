@@ -35,9 +35,12 @@ export const createAssessmentDefinition = async (
   deps: { assessmentWriteRepository: AssessmentWriteRepository },
   input: { key: string; name: string; description?: string },
 ) => {
-  return deps.assessmentWriteRepository.createAssessmentDefinition(
-    createAssessmentDefinitionSchema.parse(input),
-  );
+  const parsed = createAssessmentDefinitionSchema.parse(input);
+  return deps.assessmentWriteRepository.createAssessmentDefinition({
+    key: parsed.key,
+    name: parsed.name,
+    ...(parsed.description !== undefined ? { description: parsed.description } : {}),
+  });
 };
 
 export const createAssessmentVersion = async (

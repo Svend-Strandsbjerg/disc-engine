@@ -18,7 +18,10 @@ export const registerSessionRoutes = (app: FastifyInstance) => {
         assessmentReadRepository: app.repositories.assessmentReadRepository,
         assessmentSessionRepository: app.repositories.assessmentSessionRepository,
       },
-      body,
+      {
+        assessmentVersionId: body.assessmentVersionId,
+        ...(body.metadata !== undefined ? { metadata: body.metadata } : {}),
+      },
     );
 
     return reply.code(201).send(session);

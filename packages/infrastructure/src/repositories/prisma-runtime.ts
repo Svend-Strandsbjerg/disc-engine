@@ -9,8 +9,14 @@ import type {
   Response,
 } from '@disc-foundation/domain';
 import type { UUID } from '@disc-foundation/shared';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../services/prisma.js';
 import { getAccessContext } from '../services/access-context.js';
+
+const toInputJsonValue = (value: unknown): Prisma.InputJsonValue => value as Prisma.InputJsonValue;
+
+const toNullableJsonValue = (value: string | number | null): Prisma.NullableJsonNullValueInput | Prisma.InputJsonValue =>
+  value === null ? Prisma.JsonNull : (value as Prisma.InputJsonValue);
 
 const mapSession = (session: {
   id: string;
@@ -60,7 +66,7 @@ export class PrismaAssessmentSessionRepository implements AssessmentSessionRepos
           assessmentDefinitionId: input.assessmentDefinitionId,
           assessmentVersionId: input.assessmentVersionId,
           status: 'in_progress',
-          metadata: input.metadata,
+          ...(input.metadata !== undefined ? { metadata: toInputJsonValue(input.metadata) } : {}),
         },
       });
     });
@@ -143,13 +149,13 @@ export class PrismaResponseRepository implements ResponseRepository {
           },
           update: {
             selectedOptionIds: response.selectedOptionIds,
-            value: response.value,
+            value: toNullableJsonValue(response.value),
           },
           create: {
             sessionId,
             questionId: response.questionId,
             selectedOptionIds: response.selectedOptionIds,
-            value: response.value,
+            value: toNullableJsonValue(response.value),
           },
         }),
       ),
@@ -177,10 +183,10 @@ export class PrismaResultRepository implements ResultRepository {
           scoringVersion: result.scoringVersion,
           profileCode: result.profileCode,
           summary: result.summary,
-          scoreBreakdown: result.scoreBreakdown,
-          totalScores: result.totalScores,
-          rawResponsesSnapshot: result.rawResponsesSnapshot,
-          auditTrail: result.auditTrail,
+          scoreBreakdown: toInputJsonValue(result.scoreBreakdown),
+          totalScores: toInputJsonValue(result.totalScores),
+          rawResponsesSnapshot: toInputJsonValue(result.rawResponsesSnapshot),
+          auditTrail: toInputJsonValue(result.auditTrail),
           calculatedAt: result.calculatedAt,
         },
         create: {
@@ -191,10 +197,10 @@ export class PrismaResultRepository implements ResultRepository {
           scoringVersion: result.scoringVersion,
           profileCode: result.profileCode,
           summary: result.summary,
-          scoreBreakdown: result.scoreBreakdown,
-          totalScores: result.totalScores,
-          rawResponsesSnapshot: result.rawResponsesSnapshot,
-          auditTrail: result.auditTrail,
+          scoreBreakdown: toInputJsonValue(result.scoreBreakdown),
+          totalScores: toInputJsonValue(result.totalScores),
+          rawResponsesSnapshot: toInputJsonValue(result.rawResponsesSnapshot),
+          auditTrail: toInputJsonValue(result.auditTrail),
           calculatedAt: result.calculatedAt,
         },
       });
@@ -223,11 +229,11 @@ export class PrismaResultRepository implements ResultRepository {
       scoringVersion: row.scoringVersion,
       profileCode: row.profileCode,
       ...(row.summary ? { summary: row.summary } : {}),
-      scoreBreakdown: row.scoreBreakdown as ProfileResult['scoreBreakdown'],
+      scoreBreakdown: row.scoreBreakdown as unknown as ProfileResult['scoreBreakdown'],
       totalScores: row.totalScores as Record<string, number>,
-      rawResponsesSnapshot: row.rawResponsesSnapshot as Response[],
+      rawResponsesSnapshot: row.rawResponsesSnapshot as unknown as Response[],
       calculatedAt: row.calculatedAt,
-      auditTrail: row.auditTrail as ProfileResult['auditTrail'],
+      auditTrail: row.auditTrail as unknown as ProfileResult['auditTrail'],
     };
   }
 }

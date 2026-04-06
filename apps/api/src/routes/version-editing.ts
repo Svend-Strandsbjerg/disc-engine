@@ -86,7 +86,15 @@ export const registerVersionEditingRoutes = (app: FastifyInstance) => {
         assessmentReadRepository: app.repositories.assessmentReadRepository,
         assessmentWriteRepository: app.repositories.assessmentWriteRepository,
       },
-      { assessmentVersionId: params.id, ...body },
+      {
+        assessmentVersionId: params.id,
+        code: body.code,
+        prompt: body.prompt,
+        type: body.type,
+        order: body.order,
+        ...(body.required !== undefined ? { required: body.required } : {}),
+        ...(body.metadata !== undefined ? { metadata: body.metadata } : {}),
+      },
     );
 
     return reply.code(201).send(created);
@@ -111,7 +119,15 @@ export const registerVersionEditingRoutes = (app: FastifyInstance) => {
           assessmentReadRepository: app.repositories.assessmentReadRepository,
           assessmentWriteRepository: app.repositories.assessmentWriteRepository,
         },
-        { id: params.id, ...body },
+        {
+          id: params.id,
+          assessmentVersionId: body.assessmentVersionId,
+          ...(body.prompt !== undefined ? { prompt: body.prompt } : {}),
+          ...(body.type !== undefined ? { type: body.type } : {}),
+          ...(body.order !== undefined ? { order: body.order } : {}),
+          ...(body.required !== undefined ? { required: body.required } : {}),
+          ...(body.metadata !== undefined ? { metadata: body.metadata } : {}),
+        },
       ),
     );
   });
@@ -148,7 +164,14 @@ export const registerVersionEditingRoutes = (app: FastifyInstance) => {
         assessmentReadRepository: app.repositories.assessmentReadRepository,
         assessmentWriteRepository: app.repositories.assessmentWriteRepository,
       },
-      { questionId: params.id, ...body },
+      {
+        questionId: params.id,
+        assessmentVersionId: body.assessmentVersionId,
+        code: body.code,
+        label: body.label,
+        order: body.order,
+        ...(body.metadata !== undefined ? { metadata: body.metadata } : {}),
+      },
     );
 
     return reply.code(201).send(created);
@@ -171,7 +194,13 @@ export const registerVersionEditingRoutes = (app: FastifyInstance) => {
           assessmentReadRepository: app.repositories.assessmentReadRepository,
           assessmentWriteRepository: app.repositories.assessmentWriteRepository,
         },
-        { id: params.id, ...body },
+        {
+          id: params.id,
+          assessmentVersionId: body.assessmentVersionId,
+          ...(body.label !== undefined ? { label: body.label } : {}),
+          ...(body.order !== undefined ? { order: body.order } : {}),
+          ...(body.metadata !== undefined ? { metadata: body.metadata } : {}),
+        },
       ),
     );
   });
@@ -229,7 +258,13 @@ export const registerVersionEditingRoutes = (app: FastifyInstance) => {
           assessmentReadRepository: app.repositories.assessmentReadRepository,
           assessmentWriteRepository: app.repositories.assessmentWriteRepository,
         },
-        { id: params.id, ...body },
+        {
+          id: params.id,
+          assessmentVersionId: body.assessmentVersionId,
+          ...(body.questionId !== undefined ? { questionId: body.questionId } : {}),
+          ...(body.optionId !== undefined ? { optionId: body.optionId } : {}),
+          ...(body.impacts !== undefined ? { impacts: body.impacts } : {}),
+        },
       ),
     );
   });

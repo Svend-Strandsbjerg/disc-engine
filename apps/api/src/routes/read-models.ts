@@ -73,12 +73,12 @@ export const registerReadRoutes = (app: FastifyInstance) => {
       { resultQueryRepository: app.repositories.resultQueryRepository },
       {
         assessmentDefinitionId: params.id,
-        from: query.from ? new Date(query.from) : undefined,
-        to: query.to ? new Date(query.to) : undefined,
-        sessionStatus: query.sessionStatus,
-        assessmentVersionId: query.assessmentVersionId,
-        limit: query.limit,
-        offset: query.offset,
+        ...(query.from ? { from: new Date(query.from) } : {}),
+        ...(query.to ? { to: new Date(query.to) } : {}),
+        ...(query.sessionStatus !== undefined ? { sessionStatus: query.sessionStatus } : {}),
+        ...(query.assessmentVersionId !== undefined ? { assessmentVersionId: query.assessmentVersionId } : {}),
+        ...(query.limit !== undefined ? { limit: query.limit } : {}),
+        ...(query.offset !== undefined ? { offset: query.offset } : {}),
       },
     );
 
@@ -95,11 +95,11 @@ export const registerReadRoutes = (app: FastifyInstance) => {
       { resultQueryRepository: app.repositories.resultQueryRepository },
       {
         assessmentVersionId: params.id,
-        from: query.from ? new Date(query.from) : undefined,
-        to: query.to ? new Date(query.to) : undefined,
-        sessionStatus: query.sessionStatus,
-        limit: query.limit,
-        offset: query.offset,
+        ...(query.from ? { from: new Date(query.from) } : {}),
+        ...(query.to ? { to: new Date(query.to) } : {}),
+        ...(query.sessionStatus !== undefined ? { sessionStatus: query.sessionStatus } : {}),
+        ...(query.limit !== undefined ? { limit: query.limit } : {}),
+        ...(query.offset !== undefined ? { offset: query.offset } : {}),
       },
     );
 

@@ -14,13 +14,16 @@ import type {
   ReportTemplateDefinition,
 } from '@disc-foundation/domain';
 import type { UUID } from '@disc-foundation/shared';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../services/prisma.js';
 import { getAccessContext } from '../services/access-context.js';
 
 const templateInclude = {
   sections: { orderBy: { order: 'asc' } },
   interpretationRules: { orderBy: [{ priority: 'desc' }, { id: 'asc' }] },
-} as const;
+} satisfies Prisma.ReportTemplateInclude;
+
+const toInputJsonValue = (value: unknown): Prisma.InputJsonValue => value as Prisma.InputJsonValue;
 
 const mapSection = (section: {
   id: string;
@@ -48,8 +51,8 @@ const mapRule = (rule: {
   id: rule.id,
   templateId: rule.templateId,
   sectionKey: rule.sectionKey,
-  target: rule.target as InterpretationTarget,
-  condition: rule.condition as InterpretationCondition,
+  target: rule.target as unknown as InterpretationTarget,
+  condition: rule.condition as unknown as InterpretationCondition,
   output: rule.output,
   priority: rule.priority,
 });
@@ -134,7 +137,9 @@ export class PrismaReportTemplateRepository
         templateVersion: input.templateVersion,
         versionNumber: (latest?.versionNumber ?? 0) + 1,
         status: 'draft',
-        linkedAssessmentVersionId: input.linkedAssessmentVersionId,
+        ...(input.linkedAssessmentVersionId !== undefined
+          ? { linkedAssessmentVersionId: input.linkedAssessmentVersionId }
+          : {}),
       },
       include: templateInclude,
     });
@@ -181,8 +186,8 @@ export class PrismaReportTemplateRepository
             createMany: {
               data: source.interpretationRules.map((rule) => ({
                 sectionKey: rule.sectionKey,
-                target: rule.target,
-                condition: rule.condition,
+                target: toInputJsonValue(rule.target),
+                condition: toInputJsonValue(rule.condition),
                 output: rule.output,
                 priority: rule.priority,
               })),
@@ -286,8 +291,8 @@ export class PrismaReportTemplateRepository
         data: {
           templateId: input.templateId,
           sectionKey: input.sectionKey,
-          target: input.target,
-          condition: input.condition,
+          target: toInputJsonValue(input.target),
+          condition: toInputJsonValue(input.condition),
           output: input.output,
           priority: input.priority,
         },
@@ -313,8 +318,8 @@ export class PrismaReportTemplateRepository
         where: { id: input.id },
         data: {
           ...(input.sectionKey !== undefined ? { sectionKey: input.sectionKey } : {}),
-          ...(input.target !== undefined ? { target: input.target } : {}),
-          ...(input.condition !== undefined ? { condition: input.condition } : {}),
+          ...(input.target !== undefined ? { target: toInputJsonValue(input.target) } : {}),
+          ...(input.condition !== undefined ? { condition: toInputJsonValue(input.condition) } : {}),
           ...(input.output !== undefined ? { output: input.output } : {}),
           ...(input.priority !== undefined ? { priority: input.priority } : {}),
         },
@@ -355,8 +360,8 @@ export class PrismaGeneratedReportRepository implements GeneratedReportRepositor
           sessionId: input.report.sessionId,
           templateId: input.report.templateId,
           profileResultId: input.report.resultSnapshot.id,
-          resultSnapshot: input.report.resultSnapshot,
-          sections: input.report.sections,
+          resultSnapshot: toInputJsonValue(input.report.resultSnapshot),
+          sections: toInputJsonValue(input.report.sections),
           generatedAt: input.report.generatedAt,
         },
       });
@@ -365,8 +370,8 @@ export class PrismaGeneratedReportRepository implements GeneratedReportRepositor
         id: persisted.id,
         sessionId: persisted.sessionId,
         templateId: persisted.templateId,
-        resultSnapshot: persisted.resultSnapshot as ProfileResult,
-        sections: persisted.sections as GeneratedReport['sections'],
+        resultSnapshot: persisted.resultSnapshot as unknown as ProfileResult,
+        sections: persisted.sections as unknown as GeneratedReport['sections'],
         generatedAt: persisted.generatedAt,
       };
     });
@@ -381,8 +386,8 @@ export class PrismaGeneratedReportRepository implements GeneratedReportRepositor
       id: row.id,
       sessionId: row.sessionId,
       templateId: row.templateId,
-      resultSnapshot: row.resultSnapshot as ProfileResult,
-      sections: row.sections as GeneratedReport['sections'],
+      resultSnapshot: row.resultSnapshot as unknown as ProfileResult,
+      sections: row.sections as unknown as GeneratedReport['sections'],
       generatedAt: row.generatedAt,
     };
   }

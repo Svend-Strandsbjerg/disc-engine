@@ -124,7 +124,7 @@ export const addQuestion = async (
     type: parsed.type,
     order: parsed.order,
     required: parsed.required,
-    metadata: parsed.metadata,
+    ...(parsed.metadata !== undefined ? { metadata: parsed.metadata } : {}),
   });
 };
 
@@ -196,7 +196,7 @@ export const addQuestionOption = async (
     code: parsed.code,
     label: parsed.label,
     order: parsed.order,
-    metadata: parsed.metadata,
+    ...(parsed.metadata !== undefined ? { metadata: parsed.metadata } : {}),
   });
 };
 
@@ -257,7 +257,12 @@ export const addScoringRule = async (
     }
   }
 
-  return deps.assessmentWriteRepository.addScoringRule(parsed);
+  return deps.assessmentWriteRepository.addScoringRule({
+    assessmentVersionId: input.assessmentVersionId,
+    questionId: parsed.questionId,
+    optionId: parsed.optionId,
+    impacts: parsed.impacts,
+  });
 };
 
 export const updateScoringRule = async (

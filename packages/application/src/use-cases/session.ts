@@ -24,7 +24,7 @@ export const createSession = async (
   return deps.assessmentSessionRepository.createSession({
     assessmentDefinitionId: version.assessmentDefinitionId,
     assessmentVersionId: input.assessmentVersionId,
-    metadata: input.metadata,
+    ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
   });
 };
 

@@ -105,7 +105,15 @@ export const addInterpretationRule = async (
 
   return deps.reportTemplateWriteRepository.addInterpretationRule({
     templateId: input.templateId,
-    ...parsed,
+    sectionKey: parsed.sectionKey,
+    target: parsed.target,
+    condition: {
+      type: parsed.condition.type,
+      ...(parsed.condition.minScore !== undefined ? { minScore: parsed.condition.minScore } : {}),
+      ...(parsed.condition.maxScore !== undefined ? { maxScore: parsed.condition.maxScore } : {}),
+    },
+    output: parsed.output,
+    priority: parsed.priority,
   });
 };
 

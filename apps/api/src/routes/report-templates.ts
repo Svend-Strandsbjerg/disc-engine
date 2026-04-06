@@ -87,7 +87,11 @@ export const registerReportTemplateRoutes = (app: FastifyInstance) => {
     const body = createTemplateSchema.parse(request.body);
     const created = await createReportTemplate(
       { reportTemplateWriteRepository: app.repositories.reportTemplateWriteRepository },
-      body,
+      {
+        key: body.key,
+        name: body.name,
+        ...(body.description !== undefined ? { description: body.description } : {}),
+      },
     );
 
     return reply.code(201).send(created);
@@ -102,7 +106,9 @@ export const registerReportTemplateRoutes = (app: FastifyInstance) => {
       {
         reportTemplateDefinitionId: params.id,
         templateVersion: body.templateVersion,
-        linkedAssessmentVersionId: body.linkedAssessmentVersionId,
+        ...(body.linkedAssessmentVersionId !== undefined
+          ? { linkedAssessmentVersionId: body.linkedAssessmentVersionId }
+          : {}),
       },
     );
 
@@ -204,7 +210,12 @@ export const registerReportTemplateRoutes = (app: FastifyInstance) => {
         reportTemplateReadRepository: app.repositories.reportTemplateReadRepository,
         reportTemplateWriteRepository: app.repositories.reportTemplateWriteRepository,
       },
-      { id: params.id, ...body },
+      {
+        id: params.id,
+        templateId: body.templateId,
+        ...(body.title !== undefined ? { title: body.title } : {}),
+        ...(body.order !== undefined ? { order: body.order } : {}),
+      },
     );
 
     return reply.send(updated);
@@ -234,7 +245,18 @@ export const registerReportTemplateRoutes = (app: FastifyInstance) => {
         reportTemplateReadRepository: app.repositories.reportTemplateReadRepository,
         reportTemplateWriteRepository: app.repositories.reportTemplateWriteRepository,
       },
-      { templateId: params.id, ...body },
+      {
+        templateId: params.id,
+        sectionKey: body.sectionKey,
+        target: body.target,
+        condition: {
+          type: body.condition.type,
+          ...(body.condition.minScore !== undefined ? { minScore: body.condition.minScore } : {}),
+          ...(body.condition.maxScore !== undefined ? { maxScore: body.condition.maxScore } : {}),
+        },
+        output: body.output,
+        priority: body.priority,
+      },
     );
 
     return reply.code(201).send(created);
@@ -249,7 +271,23 @@ export const registerReportTemplateRoutes = (app: FastifyInstance) => {
         reportTemplateReadRepository: app.repositories.reportTemplateReadRepository,
         reportTemplateWriteRepository: app.repositories.reportTemplateWriteRepository,
       },
-      { id: params.id, ...body },
+      {
+        id: params.id,
+        templateId: body.templateId,
+        ...(body.sectionKey !== undefined ? { sectionKey: body.sectionKey } : {}),
+        ...(body.target !== undefined ? { target: body.target } : {}),
+        ...(body.condition !== undefined
+          ? {
+              condition: {
+                type: body.condition.type,
+                ...(body.condition.minScore !== undefined ? { minScore: body.condition.minScore } : {}),
+                ...(body.condition.maxScore !== undefined ? { maxScore: body.condition.maxScore } : {}),
+              },
+            }
+          : {}),
+        ...(body.output !== undefined ? { output: body.output } : {}),
+        ...(body.priority !== undefined ? { priority: body.priority } : {}),
+      },
     );
 
     return reply.send(updated);
