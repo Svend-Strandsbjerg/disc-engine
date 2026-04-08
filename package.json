@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "packageManager": "pnpm@10.12.0",
   "scripts": {
-    "build": "pnpm prisma:generate && tsc -b tsconfig.build.json",
+    "build": "pnpm prisma:generate && pnpm -r build",
     "dev": "pnpm --filter @disc-foundation/api dev",
     "lint": "pnpm -r lint",
     "format": "prettier --write .",
