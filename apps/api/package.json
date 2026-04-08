@@ -5,7 +5,7 @@
   "main": "dist/server.js",
   "types": "dist/server.d.ts",
   "scripts": {
-    "build": "pnpm --filter @disc-foundation/infrastructure build && tsc -p tsconfig.json --emitDeclarationOnly && tsup src/server.ts --format esm --platform node --target node20 --out-dir dist --clean --external fastify --external zod --external @prisma/client",
+    "build": "tsup src/server.ts --format esm --platform node --target node20 --out-dir dist --clean --dts --bundle --splitting false --no-external @disc-foundation/domain --no-external @disc-foundation/application --no-external @disc-foundation/infrastructure --no-external @disc-foundation/shared --external @prisma/client --external fastify --external zod",
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
     "lint": "eslint src --ext .ts",
