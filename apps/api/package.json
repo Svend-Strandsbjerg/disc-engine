@@ -5,9 +5,9 @@
   "main": "dist/server.js",
   "types": "dist/server.d.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -b tsconfig.json",
     "dev": "tsx watch src/server.ts",
-    "start": "pnpm run build && (node dist/server.js || node dist/src/server.js)",
+    "start": "pnpm run build && node dist/server.js",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
