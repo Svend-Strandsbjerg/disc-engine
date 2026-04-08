@@ -5,7 +5,7 @@
   "main": "dist/server.js",
   "types": "dist/server.d.ts",
   "scripts": {
-    "build": "pnpm --filter @disc-foundation/infrastructure build && tsc -b tsconfig.json",
+    "build": "pnpm --filter @disc-foundation/infrastructure build && tsc -p tsconfig.json --emitDeclarationOnly && tsup src/server.ts --format esm --platform node --target node20 --out-dir dist --clean --external fastify --external zod --external @prisma/client",
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
     "lint": "eslint src --ext .ts",
@@ -18,7 +18,8 @@
     "zod": "^4.1.8"
   },
   "devDependencies": {
-    "tsx": "^4.20.6"
+    "tsx": "^4.20.6",
+    "tsup": "^8.5.0"
   },
   "exports": {
     ".": {
