@@ -238,6 +238,23 @@ Limitations (v1):
 - `POST /sessions/:id/generate-report`
 - `GET /reports/:id`
 
+
+## Railway first deploy (no migrations yet)
+
+If this is the first deploy and `packages/infrastructure/prisma/migrations` is empty, run Prisma schema sync in a non-interactive step so PostgreSQL tables are created:
+
+```bash
+pnpm prisma:db:push
+```
+
+The repository `start` script already does this before booting the API:
+
+```bash
+pnpm start
+```
+
+This is intended as an initial bootstrap path until formal Prisma migrations are introduced.
+
 ## Workspace scripts
 
 ```bash
