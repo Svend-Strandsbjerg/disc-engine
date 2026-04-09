@@ -3,9 +3,8 @@
   "version": "0.1.0",
   "type": "module",
   "main": "dist/server.js",
-  "types": "dist/server.d.ts",
   "scripts": {
-    "build": "tsup src/server.ts --format esm --platform node --target node20 --out-dir dist --clean --dts --splitting false --external @prisma/client --external fastify --external zod",
+    "build": "tsup src/server.ts --format esm --platform node --target node20 --out-dir dist --clean --splitting false --external @prisma/client --external fastify --external zod",
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
     "lint": "eslint src --ext .ts",
@@ -23,7 +22,6 @@
   },
   "exports": {
     ".": {
-      "types": "./dist/server.d.ts",
       "import": "./dist/server.js"
     }
   }
