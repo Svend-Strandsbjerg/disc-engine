@@ -4,7 +4,7 @@
   "type": "module",
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsup src/server.ts --format esm --platform node --target node20 --out-dir dist --clean --splitting false --external @prisma/client --external fastify --external zod",
+    "build": "tsup --config tsup.config.ts",
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
     "lint": "eslint src --ext .ts",
