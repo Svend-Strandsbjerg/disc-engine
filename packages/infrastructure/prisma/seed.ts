@@ -1,10 +1,15 @@
 import { PrismaClient } from '@prisma/client';
+import { createHash } from 'node:crypto';
 
 const prisma = new PrismaClient();
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111';
 const ASSESSMENT_ID = '22222222-2222-4222-8222-222222222222';
 const ASSESSMENT_VERSION_ID = '33333333-3333-4333-8333-333333333333';
+const INITIAL_API_KEY_ID = '66666666-6666-4666-8666-666666666666';
+const INITIAL_API_KEY_PREFIX = '7e11b0075eedc0de';
+const INITIAL_API_KEY_RAW = `disc_${INITIAL_API_KEY_PREFIX}_8f1de980e3fc8e43d45a8cb6f2fbd7992d2e3a8f4a4cd111`;
+const INITIAL_API_KEY_NAME = 'Initial Bootstrap Key';
 
 const QUESTION_IDS = [
   '44444444-4444-4444-8444-444444444441',
@@ -33,6 +38,8 @@ const OPTION_IDS = {
 } as const;
 
 async function main() {
+  const initialApiKeyHash = createHash('sha256').update(INITIAL_API_KEY_RAW).digest('hex');
+
   await prisma.tenant.upsert({
     where: { id: TENANT_ID },
     update: { name: 'Default Tenant' },
@@ -86,6 +93,26 @@ async function main() {
       questionCount: QUESTION_IDS.length,
       publishedAt: new Date(),
       immutableAt: new Date(),
+    },
+  });
+
+  await prisma.apiKey.upsert({
+    where: {
+      keyPrefix: INITIAL_API_KEY_PREFIX,
+    },
+    update: {
+      key: initialApiKeyHash,
+      tenantId: TENANT_ID,
+      name: INITIAL_API_KEY_NAME,
+      isActive: true,
+    },
+    create: {
+      id: INITIAL_API_KEY_ID,
+      key: initialApiKeyHash,
+      keyPrefix: INITIAL_API_KEY_PREFIX,
+      tenantId: TENANT_ID,
+      name: INITIAL_API_KEY_NAME,
+      isActive: true,
     },
   });
 
@@ -184,6 +211,7 @@ async function main() {
 
   console.log('Seed complete.');
   console.log(`tenantId=${TENANT_ID}`);
+  console.log(`initialApiKey=${INITIAL_API_KEY_RAW}`);
   console.log(`assessmentDefinitionId=${ASSESSMENT_ID}`);
   console.log(`assessmentVersionId=${ASSESSMENT_VERSION_ID}`);
 }
