@@ -12,16 +12,22 @@
     "prisma:generate": "prisma generate --schema packages/infrastructure/prisma/schema.prisma",
     "prisma:db:push": "prisma db push --schema packages/infrastructure/prisma/schema.prisma --accept-data-loss --skip-generate",
     "start": "pnpm prisma:db:push && pnpm --filter @disc-foundation/api start",
-    "prisma:sync": "pnpm prisma:db:push && pnpm prisma:generate"
+    "prisma:sync": "pnpm prisma:db:push && pnpm prisma:generate",
+    "prisma:seed": "prisma db seed"
   },
   "devDependencies": {
     "@types/node": "^24.4.0",
     "eslint": "^8.57.1",
     "prettier": "^3.6.2",
     "typescript": "^5.9.2",
-    "prisma": "^6.16.2"
+    "prisma": "^6.16.2",
+    "tsx": "^4.20.4"
   },
   "dependencies": {
     "@prisma/client": "^6.16.2"
+  },
+  "prisma": {
+    "schema": "packages/infrastructure/prisma/schema.prisma",
+    "seed": "pnpm exec tsx packages/infrastructure/prisma/seed.ts"
   }
 }
