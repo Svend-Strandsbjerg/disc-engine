@@ -8,7 +8,9 @@
     "build": "tsc -b tsconfig.json",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "prisma:generate": "prisma generate --schema prisma/schema.prisma"
+    "prisma:generate": "prisma generate --schema prisma/schema.prisma",
+    "prisma:db:push": "prisma db push --schema prisma/schema.prisma --accept-data-loss --skip-generate",
+    "prisma:sync": "pnpm prisma:db:push && pnpm prisma:generate"
   },
   "dependencies": {
     "@disc-foundation/application": "workspace:*",
