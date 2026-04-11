@@ -8,7 +8,7 @@ import {
   PrismaResponseRepository,
   PrismaResultQueryRepository,
   PrismaResultRepository,
-  setAccessContext,
+  runWithAccessContext,
 } from '@disc-foundation/infrastructure';
 import { registerApiKeyRoutes } from './routes/api-keys.js';
 import { registerAssessmentRoutes } from './routes/assessments.js';
@@ -94,7 +94,10 @@ app.addHook('onRequest', async (request, reply) => {
     apiKeyId: validated.apiKeyId,
   };
 
-  setAccessContext(request.auth);
+});
+
+app.addHook('preHandler', (request, _reply, done) => {
+  runWithAccessContext(request.auth, done);
 });
 
 app.get('/health', async () => ({ status: 'ok' }));

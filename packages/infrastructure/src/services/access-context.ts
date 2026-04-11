@@ -7,6 +7,10 @@ export interface AccessContext {
 
 const accessContextStore = new AsyncLocalStorage<AccessContext>();
 
+export const runWithAccessContext = <T>(context: AccessContext, callback: () => T): T => {
+  return accessContextStore.run(context, callback);
+};
+
 export const setAccessContext = (context: AccessContext) => {
   accessContextStore.enterWith(context);
 };
