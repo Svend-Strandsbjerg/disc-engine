@@ -10,8 +10,9 @@
     "format": "prettier --write .",
     "typecheck": "pnpm -r typecheck",
     "prisma:generate": "prisma generate --schema packages/infrastructure/prisma/schema.prisma",
-    "prisma:db:push": "prisma db push --schema packages/infrastructure/prisma/schema.prisma",
-    "start": "pnpm prisma:db:push && pnpm --filter @disc-foundation/api start"
+    "prisma:db:push": "prisma db push --schema packages/infrastructure/prisma/schema.prisma --accept-data-loss --skip-generate",
+    "start": "pnpm prisma:db:push && pnpm --filter @disc-foundation/api start",
+    "prisma:sync": "pnpm prisma:db:push && pnpm prisma:generate"
   },
   "devDependencies": {
     "@types/node": "^24.4.0",
