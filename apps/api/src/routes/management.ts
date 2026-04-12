@@ -23,6 +23,7 @@ const createVersionSchema = z.object({
 const cloneVersionSchema = z.object({
   scoringVersion: z.string().min(1),
 });
+const idParamsSchema = z.object({ id: z.string().uuid() });
 
 export const registerManagementRoutes = (app: FastifyInstance) => {
   app.post('/assessments', async (request, reply) => {
@@ -41,7 +42,7 @@ export const registerManagementRoutes = (app: FastifyInstance) => {
 
   app.post('/assessments/:id/versions', async (request, reply) => {
     const body = createVersionSchema.parse(request.body);
-    const params = request.params as { id: string };
+    const params = idParamsSchema.parse(request.params);
 
     const created = await createAssessmentVersion(
       { assessmentWriteRepository: app.repositories.assessmentWriteRepository },
@@ -53,7 +54,7 @@ export const registerManagementRoutes = (app: FastifyInstance) => {
 
   app.post('/versions/:id/clone', async (request, reply) => {
     const body = cloneVersionSchema.parse(request.body);
-    const params = request.params as { id: string };
+    const params = idParamsSchema.parse(request.params);
 
     const cloned = await cloneAssessmentVersion(
       { assessmentWriteRepository: app.repositories.assessmentWriteRepository },
@@ -64,7 +65,7 @@ export const registerManagementRoutes = (app: FastifyInstance) => {
   });
 
   app.get('/versions/:id/validation', async (request, reply) => {
-    const params = request.params as { id: string };
+    const params = idParamsSchema.parse(request.params);
     const validation = await validateAssessmentVersion(
       {
         assessmentReadRepository: app.repositories.assessmentReadRepository,
@@ -76,7 +77,7 @@ export const registerManagementRoutes = (app: FastifyInstance) => {
   });
 
   app.post('/versions/:id/publish', async (request, reply) => {
-    const params = request.params as { id: string };
+    const params = idParamsSchema.parse(request.params);
 
     const result = await publishAssessmentVersion(
       {
@@ -101,7 +102,7 @@ export const registerManagementRoutes = (app: FastifyInstance) => {
   });
 
   app.get('/versions/:id', async (request, reply) => {
-    const params = request.params as { id: string };
+    const params = idParamsSchema.parse(request.params);
     const version = await getAssessmentVersionById(
       { assessmentReadRepository: app.repositories.assessmentReadRepository },
       params.id,
@@ -115,7 +116,7 @@ export const registerManagementRoutes = (app: FastifyInstance) => {
   });
 
   app.get('/assessments/:id/active-version', async (request, reply) => {
-    const params = request.params as { id: string };
+    const params = idParamsSchema.parse(request.params);
 
     const version = await getActiveAssessmentVersion(
       { assessmentReadRepository: app.repositories.assessmentReadRepository },
