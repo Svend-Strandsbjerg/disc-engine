@@ -108,6 +108,14 @@ export interface SessionScoringDebugDto {
   };
 }
 
+export interface CompleteSessionDto {
+  sessionId: UUID;
+  lifecycleStatus: SessionLifecycleStatus;
+  resultAvailable: boolean;
+  completedAt: Date;
+  result: SessionResultDto;
+}
+
 const discDimensions = ['D', 'I', 'S', 'C'] as const;
 
 const normalize = (raw: number, denominator: number): number => {
@@ -507,6 +515,68 @@ export const getSessionResult = async (
       hasResult: true,
     }),
     ...discScores,
+  };
+};
+
+export const completeSession = async (
+  deps: {
+    assessmentReadRepository: AssessmentReadRepository;
+    assessmentSessionRepository: AssessmentSessionRepository;
+    responseRepository: ResponseRepository;
+    resultRepository: ResultRepository;
+    scoringEngine?: ScoringEngine;
+  },
+  sessionId: UUID,
+): Promise<CompleteSessionDto> => {
+  const session = await deps.assessmentSessionRepository.getSession(sessionId);
+  if (!session) {
+    throw new Error('Session not found');
+  }
+
+  const existing = await getSessionResult(
+    {
+      assessmentReadRepository: deps.assessmentReadRepository,
+      assessmentSessionRepository: deps.assessmentSessionRepository,
+      resultRepository: deps.resultRepository,
+    },
+    sessionId,
+  );
+
+  if (existing) {
+    return {
+      sessionId,
+      lifecycleStatus: existing.lifecycleStatus,
+      resultAvailable: true,
+      completedAt: existing.completedAt,
+      result: existing,
+    };
+  }
+
+  if (session.status !== 'in_progress') {
+    throw new Error('Completed session result is unavailable');
+  }
+
+  await calculateResult(deps, sessionId);
+
+  const finalized = await getSessionResult(
+    {
+      assessmentReadRepository: deps.assessmentReadRepository,
+      assessmentSessionRepository: deps.assessmentSessionRepository,
+      resultRepository: deps.resultRepository,
+    },
+    sessionId,
+  );
+
+  if (!finalized) {
+    throw new Error('Session result unavailable after completion');
+  }
+
+  return {
+    sessionId,
+    lifecycleStatus: finalized.lifecycleStatus,
+    resultAvailable: true,
+    completedAt: finalized.completedAt,
+    result: finalized,
   };
 };
 

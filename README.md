@@ -83,8 +83,15 @@ Runtime flow now persists in PostgreSQL using Prisma repositories:
 
 1. `POST /sessions` creates an `in_progress` session
 2. `POST /responses` upserts responses per `(sessionId, questionId)` while session is `in_progress`
-3. `POST /sessions/:sessionId/calculate-result` calculates score, persists `ProfileResult`, and marks session `completed` in one transaction
+3. `POST /sessions/:sessionId/complete` is the canonical finalize trigger; it computes/finalizes the result, marks session `completed`, and returns `{ resultAvailable: true, result }`
 4. Completed sessions are locked for further response submission
+
+`POST /sessions/:sessionId/complete` is idempotent for clients:
+- if result already exists, it returns the existing result contract;
+- if result does not exist and session is still `in_progress`, it calculates and persists it;
+- if session is already completed but result is missing, it returns `409` so integrations can detect an inconsistent state.
+
+`POST /sessions/:sessionId/calculate-result` remains available for backward compatibility, but new clients should use `/complete`.
 
 `GET /sessions/:sessionId` returns basic session metadata, response count, status, and result presence.
 It now also includes a derived `lifecycleStatus`:
@@ -271,6 +278,7 @@ Limitations (v1):
 - `POST /sessions`
 - `GET /sessions/:sessionId`
 - `POST /responses`
+- `POST /sessions/:sessionId/complete`
 - `POST /sessions/:sessionId/calculate-result`
 - `POST /sessions/:id/generate-report`
 - `GET /reports/:id`
