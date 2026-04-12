@@ -87,6 +87,15 @@ Runtime flow now persists in PostgreSQL using Prisma repositories:
 4. Completed sessions are locked for further response submission
 
 `GET /sessions/:sessionId` returns basic session metadata, response count, status, and result presence.
+It now also includes a derived `lifecycleStatus`:
+- `created` (session exists, no responses yet)
+- `awaiting_result` (responses submitted, result not yet persisted)
+- `completed` (result available / completed)
+
+Internal scoring debug (opt-in):
+- `GET /internal/sessions/:sessionId/scoring-debug`
+- endpoint is disabled by default and only available when `INTERNAL_SCORING_DEBUG_ENABLED=true`
+- returns per-question contribution traces, raw vs normalized D/I/S/C totals, primary/secondary dimensions, and sanity flags for flat/extreme response patterns
 
 
 ## Read-model / reporting layer
@@ -144,8 +153,36 @@ How it works (v1):
 1. Read dimensions and rules from the loaded assessment version
 2. Apply option-level rule impacts per response
 3. Aggregate raw scores per dimension
-4. Normalize to 0–100 using max raw score
+4. Normalize to 0–100 using a scoring-version strategy (default: max-raw; `disc-v1-likert-16`: total-share)
 5. Return auditable payload (`scoreBreakdown`, `totalScores`, `rawResponsesSnapshot`, `auditTrail`, `scoringVersion`)
+
+`GET /sessions/:sessionId/result` also returns:
+- derived `lifecycleStatus` for consistent client flow handling
+- a minimal structured `profileSummary` for client reuse (`profileCode`, ordered dimensions, compact shape flags)
+- lightweight `qualityIndicators` (`flatResponse`, `extremeResponse`, `missingDimensionContribution`, plus compact metrics/score)
+
+For `disc-v1-likert-16`, these are computed from normalized score spread/ties and response-pattern checks.
+
+
+## Seeded DISC assessment v1 (engine data)
+
+The bootstrap seed now includes a first production-safe DISC dataset wired to a fixed `assessmentVersionId` and `scoringVersion = disc-v1-likert-16`.
+
+Format choice:
+- **Single-select, 5-point Likert** (`Strongly disagree` → `Strongly agree`) for each item.
+- Chosen over forced-choice for this first engine version because it fits the current single-response flow, is deterministic to score, and avoids ipsative ranking constraints while remaining easy to evolve.
+
+Structure:
+- 16 items total (4 per DISC dimension: D, I, S, C).
+- Items are behavior-focused, single-idea statements.
+- Each dimension includes reverse-scored items to reduce straight-line/acquiescence risk.
+
+Scoring model:
+- Every option maps to exactly one rule impact (`dimensionKey`, `weight`).
+- Non-reverse items score `0..4` from disagree→agree.
+- Reverse items score `4..0` from disagree→agree.
+- Result calculation and retrieval remain in the existing domain/application flow.
+- For `disc-v1-likert-16`, normalized scores use total-share normalization (`dimensionRaw / totalRaw * 100`) to improve profile stability in flat/extreme patterns.
 
 ## Setup
 

@@ -100,3 +100,17 @@ test('calculateProfileResult is deterministic for the same inputs', () => {
 
   assert.deepEqual(first, second);
 });
+
+test('disc-v1-likert-16 uses total-share normalization for more stable profiles', () => {
+  const discVersion: AssessmentVersion = {
+    ...assessmentVersion,
+    scoringVersion: 'disc-v1-likert-16',
+  };
+
+  const result = calculateProfileResult({ responses, assessmentVersion: discVersion });
+  const d = result.scoreBreakdown.find((item) => item.dimensionKey === 'D');
+  const i = result.scoreBreakdown.find((item) => item.dimensionKey === 'I');
+
+  assert.equal(d?.normalizedScore, 66.67);
+  assert.equal(i?.normalizedScore, 33.33);
+});
