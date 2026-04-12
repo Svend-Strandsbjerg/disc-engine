@@ -38,7 +38,6 @@ export const createSession = async (
     throw new Error('Sessions can only be created for published immutable versions');
   }
 
-  // TODO: Add tenant/access checks when auth and multi-tenant context are introduced.
   return deps.assessmentSessionRepository.createSession({
     assessmentDefinitionId: version.assessmentDefinitionId,
     assessmentVersionId: input.assessmentVersionId,

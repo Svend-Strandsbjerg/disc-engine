@@ -24,6 +24,53 @@ const templateInclude = {
 } satisfies Prisma.ReportTemplateInclude;
 
 const toInputJsonValue = (value: unknown): Prisma.InputJsonValue => value as Prisma.InputJsonValue;
+const TARGET_TYPES = new Set<InterpretationTarget['type']>(['dimension', 'combination']);
+const CONDITION_TYPES = new Set<InterpretationCondition['type']>([
+  'high',
+  'medium',
+  'low',
+  'top_dimension',
+  'lowest_dimension',
+]);
+
+const parseInterpretationTarget = (value: unknown): InterpretationTarget => {
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'type' in value &&
+    'dimensionKeys' in value &&
+    TARGET_TYPES.has((value as { type: InterpretationTarget['type'] }).type) &&
+    Array.isArray((value as { dimensionKeys: unknown }).dimensionKeys) &&
+    (value as { dimensionKeys: unknown[] }).dimensionKeys.every((item) => typeof item === 'string')
+  ) {
+    const target = value as { type: InterpretationTarget['type']; dimensionKeys: string[] };
+    return { type: target.type, dimensionKeys: target.dimensionKeys };
+  }
+
+  throw new Error('Invalid interpretation target payload');
+};
+
+const parseInterpretationCondition = (value: unknown): InterpretationCondition => {
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'type' in value &&
+    CONDITION_TYPES.has((value as { type: InterpretationCondition['type'] }).type)
+  ) {
+    const condition = value as {
+      type: InterpretationCondition['type'];
+      minScore?: unknown;
+      maxScore?: unknown;
+    };
+    return {
+      type: condition.type,
+      ...(typeof condition.minScore === 'number' ? { minScore: condition.minScore } : {}),
+      ...(typeof condition.maxScore === 'number' ? { maxScore: condition.maxScore } : {}),
+    };
+  }
+
+  throw new Error('Invalid interpretation condition payload');
+};
 
 const mapSection = (section: {
   id: string;
@@ -51,8 +98,8 @@ const mapRule = (rule: {
   id: rule.id,
   templateId: rule.templateId,
   sectionKey: rule.sectionKey,
-  target: rule.target as unknown as InterpretationTarget,
-  condition: rule.condition as unknown as InterpretationCondition,
+  target: parseInterpretationTarget(rule.target),
+  condition: parseInterpretationCondition(rule.condition),
   output: rule.output,
   priority: rule.priority,
 });
@@ -124,6 +171,20 @@ export class PrismaReportTemplateRepository
     linkedAssessmentVersionId?: UUID;
   }): Promise<ReportTemplate> {
     const tenantId = getAccessContext().tenantId;
+    const definition = await prisma.reportTemplateDefinition.findFirst({
+      where: { id: input.reportTemplateDefinitionId, tenantId },
+      select: { id: true },
+    });
+    if (!definition) throw new Error('Report template definition not found');
+
+    if (input.linkedAssessmentVersionId) {
+      const linkedVersion = await prisma.assessmentVersion.findFirst({
+        where: { id: input.linkedAssessmentVersionId, tenantId },
+        select: { id: true },
+      });
+      if (!linkedVersion) throw new Error('Linked assessment version not found');
+    }
+
     const latest = await prisma.reportTemplate.findFirst({
       where: { reportTemplateDefinitionId: input.reportTemplateDefinitionId, tenantId },
       orderBy: { versionNumber: 'desc' },

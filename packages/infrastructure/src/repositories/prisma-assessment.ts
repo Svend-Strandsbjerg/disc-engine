@@ -145,6 +145,12 @@ export class PrismaAssessmentRepository implements AssessmentReadRepository, Ass
     scoringVersion: string;
   }): Promise<AssessmentVersion> {
     const tenantId = getTenantId();
+    const definition = await prisma.assessmentDefinition.findFirst({
+      where: { id: input.assessmentDefinitionId, tenantId },
+      select: { id: true },
+    });
+    if (!definition) throw new Error('Assessment definition not found');
+
     const latest = await prisma.assessmentVersion.findFirst({
       where: { assessmentDefinitionId: input.assessmentDefinitionId, tenantId },
       orderBy: { versionNumber: 'desc' },

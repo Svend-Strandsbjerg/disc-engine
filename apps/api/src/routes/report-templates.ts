@@ -81,6 +81,7 @@ const updateRuleSchema = z.object({
 const deleteWithTemplateSchema = z.object({
   templateId: z.string().uuid(),
 });
+const idParamsSchema = z.object({ id: z.string().uuid() });
 
 export const registerReportTemplateRoutes = (app: FastifyInstance) => {
   app.post('/report-templates', async (request, reply) => {
@@ -98,7 +99,7 @@ export const registerReportTemplateRoutes = (app: FastifyInstance) => {
   });
 
   app.post('/report-templates/:id/versions', async (request, reply) => {
-    const params = request.params as { id: string };
+    const params = idParamsSchema.parse(request.params);
     const body = createTemplateVersionSchema.parse(request.body);
 
     const created = await createReportTemplateVersion(
@@ -116,7 +117,7 @@ export const registerReportTemplateRoutes = (app: FastifyInstance) => {
   });
 
   app.post('/report-templates/versions/:id/clone', async (request, reply) => {
-    const params = request.params as { id: string };
+    const params = idParamsSchema.parse(request.params);
     const body = cloneTemplateVersionSchema.parse(request.body);
 
     const cloned = await cloneReportTemplateVersion(
@@ -128,7 +129,7 @@ export const registerReportTemplateRoutes = (app: FastifyInstance) => {
   });
 
   app.get('/report-templates/versions/:id/validation', async (request, reply) => {
-    const params = request.params as { id: string };
+    const params = idParamsSchema.parse(request.params);
     const validation = await validateReportTemplateVersion(
       { reportTemplateReadRepository: app.repositories.reportTemplateReadRepository },
       params.id,
@@ -138,7 +139,7 @@ export const registerReportTemplateRoutes = (app: FastifyInstance) => {
   });
 
   app.post('/report-templates/versions/:id/publish', async (request, reply) => {
-    const params = request.params as { id: string };
+    const params = idParamsSchema.parse(request.params);
 
     const published = await publishReportTemplateVersion(
       {
@@ -159,7 +160,7 @@ export const registerReportTemplateRoutes = (app: FastifyInstance) => {
   });
 
   app.get('/report-templates/versions/:id', async (request, reply) => {
-    const params = request.params as { id: string };
+    const params = idParamsSchema.parse(request.params);
     const version = await getReportTemplateVersionById(
       { reportTemplateReadRepository: app.repositories.reportTemplateReadRepository },
       params.id,
@@ -173,7 +174,7 @@ export const registerReportTemplateRoutes = (app: FastifyInstance) => {
   });
 
   app.get('/report-templates/:id/active-version', async (request, reply) => {
-    const params = request.params as { id: string };
+    const params = idParamsSchema.parse(request.params);
     const version = await getActiveReportTemplateVersion(
       { reportTemplateReadRepository: app.repositories.reportTemplateReadRepository },
       params.id,
@@ -187,7 +188,7 @@ export const registerReportTemplateRoutes = (app: FastifyInstance) => {
   });
 
   app.post('/report-templates/versions/:id/sections', async (request, reply) => {
-    const params = request.params as { id: string };
+    const params = idParamsSchema.parse(request.params);
     const body = addSectionSchema.parse(request.body);
 
     const created = await addReportSection(
@@ -202,7 +203,7 @@ export const registerReportTemplateRoutes = (app: FastifyInstance) => {
   });
 
   app.patch('/report-sections/:id', async (request, reply) => {
-    const params = request.params as { id: string };
+    const params = idParamsSchema.parse(request.params);
     const body = updateSectionSchema.parse(request.body);
 
     const updated = await updateReportSection(
@@ -222,7 +223,7 @@ export const registerReportTemplateRoutes = (app: FastifyInstance) => {
   });
 
   app.delete('/report-sections/:id', async (request, reply) => {
-    const params = request.params as { id: string };
+    const params = idParamsSchema.parse(request.params);
     const body = deleteWithTemplateSchema.parse(request.body ?? {});
 
     await removeReportSection(
@@ -237,7 +238,7 @@ export const registerReportTemplateRoutes = (app: FastifyInstance) => {
   });
 
   app.post('/report-templates/versions/:id/rules', async (request, reply) => {
-    const params = request.params as { id: string };
+    const params = idParamsSchema.parse(request.params);
     const body = addRuleSchema.parse(request.body);
 
     const created = await addInterpretationRule(
@@ -263,7 +264,7 @@ export const registerReportTemplateRoutes = (app: FastifyInstance) => {
   });
 
   app.patch('/interpretation-rules/:id', async (request, reply) => {
-    const params = request.params as { id: string };
+    const params = idParamsSchema.parse(request.params);
     const body = updateRuleSchema.parse(request.body);
 
     const updated = await updateInterpretationRule(
@@ -294,7 +295,7 @@ export const registerReportTemplateRoutes = (app: FastifyInstance) => {
   });
 
   app.delete('/interpretation-rules/:id', async (request, reply) => {
-    const params = request.params as { id: string };
+    const params = idParamsSchema.parse(request.params);
     const body = deleteWithTemplateSchema.parse(request.body ?? {});
 
     await removeInterpretationRule(
