@@ -2,7 +2,6 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
   getResultById,
-  getResultBySessionId,
   getSessionDetail,
   listResultsByAssessmentDefinition,
   listResultsByAssessmentVersion,
@@ -32,20 +31,6 @@ export const registerReadRoutes = (app: FastifyInstance) => {
 
     if (!result) {
       return reply.code(404).send({ message: 'Result not found' });
-    }
-
-    return reply.send(result);
-  });
-
-  app.get('/sessions/:sessionId/result', async (request, reply) => {
-    const params = sessionParamsSchema.parse(request.params);
-    const result = await getResultBySessionId(
-      { resultQueryRepository: app.repositories.resultQueryRepository },
-      params.sessionId,
-    );
-
-    if (!result) {
-      return reply.code(404).send({ message: 'Session result not found' });
     }
 
     return reply.send(result);
