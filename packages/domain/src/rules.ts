@@ -31,12 +31,16 @@ const buildRuleIndex = (rules: ScoringRule[]): Map<string, ScoringRule> => {
   return new Map(rules.map((rule) => [`${rule.questionId}:${rule.optionId}`, rule]));
 };
 
-const normalize = (raw: number, max: number): number => {
-  if (max <= 0) {
+const normalize = (raw: number, denominator: number): number => {
+  if (denominator <= 0) {
     return 0;
   }
 
-  return Number(((raw / max) * 100).toFixed(2));
+  return Number(((raw / denominator) * 100).toFixed(2));
+};
+
+const useTotalShareNormalization = (scoringVersion: string): boolean => {
+  return scoringVersion === 'disc-v1-likert-16';
 };
 
 export const calculateProfileResult = (input: {
@@ -98,6 +102,9 @@ export const calculateProfileResult = (input: {
 
   const rawValues = [...dimensionScores.values()];
   const maxRawScore = rawValues.length > 0 ? Math.max(...rawValues) : 0;
+  const totalRawScore = rawValues.reduce((sum, value) => sum + value, 0);
+  const normalizationMode = useTotalShareNormalization(assessmentVersion.scoringVersion) ? 'total_share' : 'max';
+  const normalizationDenominator = normalizationMode === 'total_share' ? totalRawScore : maxRawScore;
 
   const scoreBreakdown: ScoreBreakdownItem[] = assessmentVersion.dimensions
     .slice()
@@ -108,14 +115,25 @@ export const calculateProfileResult = (input: {
         dimensionKey: dimension.key,
         dimensionLabel: dimension.label,
         rawScore,
-        normalizedScore: normalize(rawScore, maxRawScore),
+        normalizedScore: normalize(rawScore, normalizationDenominator),
         evidence: evidence.get(dimension.key) ?? [],
       };
     });
 
+  auditTrail.push({
+    id: `${assessmentVersion.id}:normalization:${normalizationMode}`,
+    occurredAt: new Date(assessmentVersion.createdAt),
+    type: 'normalization_applied',
+    payload: {
+      scoringVersion: assessmentVersion.scoringVersion,
+      mode: normalizationMode,
+      denominator: normalizationDenominator,
+    },
+  });
+
   const highest = scoreBreakdown
     .slice()
-    .sort((a, b) => b.normalizedScore - a.normalizedScore || a.dimensionKey.localeCompare(b.dimensionKey))[0];
+    .sort((a, b) => b.normalizedScore - a.normalizedScore || b.rawScore - a.rawScore || a.dimensionKey.localeCompare(b.dimensionKey))[0];
 
   const sessionId = responses[0]?.sessionId ?? 'unknown-session';
 

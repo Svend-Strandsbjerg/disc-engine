@@ -4,6 +4,24 @@ import type {
 } from '../ports/repositories.js';
 import type { UUID } from '@disc-foundation/shared';
 
+export type SessionLifecycleStatus = 'created' | 'awaiting_result' | 'completed';
+
+export const deriveSessionLifecycleStatus = (input: {
+  status: 'in_progress' | 'completed';
+  responseCount: number;
+  hasResult: boolean;
+}): SessionLifecycleStatus => {
+  if (input.hasResult || input.status === 'completed') {
+    return 'completed';
+  }
+
+  if (input.responseCount === 0) {
+    return 'created';
+  }
+
+  return 'awaiting_result';
+};
+
 export const createSession = async (
   deps: {
     assessmentReadRepository: AssessmentReadRepository;
@@ -32,5 +50,17 @@ export const getSession = async (
   deps: { assessmentSessionRepository: AssessmentSessionRepository },
   sessionId: UUID,
 ) => {
-  return deps.assessmentSessionRepository.getSessionSummary(sessionId);
+  const summary = await deps.assessmentSessionRepository.getSessionSummary(sessionId);
+  if (!summary) {
+    return null;
+  }
+
+  return {
+    ...summary,
+    lifecycleStatus: deriveSessionLifecycleStatus({
+      status: summary.status,
+      responseCount: summary.responseCount,
+      hasResult: summary.hasResult,
+    }),
+  };
 };

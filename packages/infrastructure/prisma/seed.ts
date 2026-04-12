@@ -6,31 +6,135 @@ const ASSESSMENT_ID = '22222222-2222-4222-8222-222222222222';
 const ASSESSMENT_VERSION_ID = '33333333-3333-4333-8333-333333333333';
 const INITIAL_API_KEY_NAME = 'Initial Bootstrap Key';
 
-const QUESTION_IDS = [
-  '44444444-4444-4444-8444-444444444441',
-  '44444444-4444-4444-8444-444444444442',
-  '44444444-4444-4444-8444-444444444443',
-  '44444444-4444-4444-8444-444444444444',
+const LIKERT_OPTIONS = [
+  { code: 'strongly_disagree', label: 'Strongly disagree', order: 1, intensity: 0 },
+  { code: 'disagree', label: 'Disagree', order: 2, intensity: 1 },
+  { code: 'neutral', label: 'Neither agree nor disagree', order: 3, intensity: 2 },
+  { code: 'agree', label: 'Agree', order: 4, intensity: 3 },
+  { code: 'strongly_agree', label: 'Strongly agree', order: 5, intensity: 4 },
 ] as const;
 
-const OPTION_IDS = {
-  q1: [
-    '55555555-5555-4555-8555-555555555511',
-    '55555555-5555-4555-8555-555555555512',
-  ],
-  q2: [
-    '55555555-5555-4555-8555-555555555521',
-    '55555555-5555-4555-8555-555555555522',
-  ],
-  q3: [
-    '55555555-5555-4555-8555-555555555531',
-    '55555555-5555-4555-8555-555555555532',
-  ],
-  q4: [
-    '55555555-5555-4555-8555-555555555541',
-    '55555555-5555-4555-8555-555555555542',
-  ],
-} as const;
+const DIMENSIONS = [
+  { key: 'D', label: 'Dominance', order: 1 },
+  { key: 'I', label: 'Influence', order: 2 },
+  { key: 'S', label: 'Steadiness', order: 3 },
+  { key: 'C', label: 'Conscientiousness', order: 4 },
+] as const;
+
+const QUESTIONS = [
+  {
+    code: 'Q1',
+    prompt: 'I am comfortable taking charge when quick decisions are needed.',
+    order: 1,
+    dimensionKey: 'D',
+    reverseScored: false,
+  },
+  {
+    code: 'Q2',
+    prompt: 'I push for ambitious targets, even when the path is uncertain.',
+    order: 2,
+    dimensionKey: 'D',
+    reverseScored: false,
+  },
+  {
+    code: 'Q3',
+    prompt: 'I avoid confrontation, even when a direct conversation would solve the issue.',
+    order: 3,
+    dimensionKey: 'D',
+    reverseScored: true,
+  },
+  {
+    code: 'Q4',
+    prompt: 'I am hesitant to make decisions before every detail is known.',
+    order: 4,
+    dimensionKey: 'D',
+    reverseScored: true,
+  },
+  {
+    code: 'Q5',
+    prompt: 'I naturally start conversations and build rapport with new people.',
+    order: 5,
+    dimensionKey: 'I',
+    reverseScored: false,
+  },
+  {
+    code: 'Q6',
+    prompt: 'I enjoy energizing a group around a new idea.',
+    order: 6,
+    dimensionKey: 'I',
+    reverseScored: false,
+  },
+  {
+    code: 'Q7',
+    prompt: 'I keep communication brief and mostly task-focused rather than social.',
+    order: 7,
+    dimensionKey: 'I',
+    reverseScored: true,
+  },
+  {
+    code: 'Q8',
+    prompt: 'I prefer to persuade with data alone instead of enthusiasm and storytelling.',
+    order: 8,
+    dimensionKey: 'I',
+    reverseScored: true,
+  },
+  {
+    code: 'Q9',
+    prompt: 'I stay patient and steady when work becomes stressful.',
+    order: 9,
+    dimensionKey: 'S',
+    reverseScored: false,
+  },
+  {
+    code: 'Q10',
+    prompt: 'I am dependable about following through on commitments over time.',
+    order: 10,
+    dimensionKey: 'S',
+    reverseScored: false,
+  },
+  {
+    code: 'Q11',
+    prompt: 'Frequent shifts in priorities keep me motivated and focused.',
+    order: 11,
+    dimensionKey: 'S',
+    reverseScored: true,
+  },
+  {
+    code: 'Q12',
+    prompt: 'I get restless when work routines stay consistent for long periods.',
+    order: 12,
+    dimensionKey: 'S',
+    reverseScored: true,
+  },
+  {
+    code: 'Q13',
+    prompt: 'I check details carefully before I consider a task complete.',
+    order: 13,
+    dimensionKey: 'C',
+    reverseScored: false,
+  },
+  {
+    code: 'Q14',
+    prompt: 'I prefer clear standards and defined processes when delivering work.',
+    order: 14,
+    dimensionKey: 'C',
+    reverseScored: false,
+  },
+  {
+    code: 'Q15',
+    prompt: 'Strict procedures usually slow progress more than they improve quality.',
+    order: 15,
+    dimensionKey: 'C',
+    reverseScored: true,
+  },
+  {
+    code: 'Q16',
+    prompt: 'I am comfortable submitting work without reviewing it for errors first.',
+    order: 16,
+    dimensionKey: 'C',
+    reverseScored: true,
+  },
+] as const;
 
 async function main() {
   const apiKeyService = new ApiKeyService();
@@ -55,14 +159,14 @@ async function main() {
     update: {
       id: ASSESSMENT_ID,
       name: 'DISC Core Assessment',
-      description: 'Minimal seeded DISC assessment for session/response APIs.',
+      description: 'DISC v1 (Likert-format) with deterministic D/I/S/C scoring rules.',
     },
     create: {
       id: ASSESSMENT_ID,
       tenantId: TENANT_ID,
       key: 'disc-core',
       name: 'DISC Core Assessment',
-      description: 'Minimal seeded DISC assessment for session/response APIs.',
+      description: 'DISC v1 (Likert-format) with deterministic D/I/S/C scoring rules.',
     },
   });
 
@@ -71,10 +175,10 @@ async function main() {
     update: {
       tenantId: TENANT_ID,
       assessmentDefinitionId: ASSESSMENT_ID,
-      scoringVersion: 'disc-v1',
+      scoringVersion: 'disc-v1-likert-16',
       versionNumber: 1,
       status: 'published',
-      questionCount: QUESTION_IDS.length,
+      questionCount: QUESTIONS.length,
       publishedAt: new Date(),
       immutableAt: new Date(),
     },
@@ -82,14 +186,42 @@ async function main() {
       id: ASSESSMENT_VERSION_ID,
       tenantId: TENANT_ID,
       assessmentDefinitionId: ASSESSMENT_ID,
-      scoringVersion: 'disc-v1',
+      scoringVersion: 'disc-v1-likert-16',
       versionNumber: 1,
       status: 'published',
-      questionCount: QUESTION_IDS.length,
+      questionCount: QUESTIONS.length,
       publishedAt: new Date(),
       immutableAt: new Date(),
     },
   });
+
+  await prisma.scoreDimension.deleteMany({
+    where: {
+      assessmentVersionId: ASSESSMENT_VERSION_ID,
+      key: { notIn: DIMENSIONS.map((dimension) => dimension.key) },
+    },
+  });
+
+  for (const dimension of DIMENSIONS) {
+    await prisma.scoreDimension.upsert({
+      where: {
+        assessmentVersionId_key: {
+          assessmentVersionId: ASSESSMENT_VERSION_ID,
+          key: dimension.key,
+        },
+      },
+      update: {
+        label: dimension.label,
+        order: dimension.order,
+      },
+      create: {
+        assessmentVersionId: ASSESSMENT_VERSION_ID,
+        key: dimension.key,
+        label: dimension.label,
+        order: dimension.order,
+      },
+    });
+  }
 
   const existingBootstrapKeys = await prisma.apiKey.findMany({
     where: {
@@ -112,51 +244,8 @@ async function main() {
     name: INITIAL_API_KEY_NAME,
   });
 
-  const questions = [
-    {
-      id: QUESTION_IDS[0],
-      code: 'Q1',
-      prompt: 'In a new project, I naturally take the lead.',
-      order: 1,
-      options: [
-        { id: OPTION_IDS.q1[0], code: 'agree', label: 'Agree', order: 1 },
-        { id: OPTION_IDS.q1[1], code: 'disagree', label: 'Disagree', order: 2 },
-      ],
-    },
-    {
-      id: QUESTION_IDS[1],
-      code: 'Q2',
-      prompt: 'I prioritize keeping harmony within the team.',
-      order: 2,
-      options: [
-        { id: OPTION_IDS.q2[0], code: 'agree', label: 'Agree', order: 1 },
-        { id: OPTION_IDS.q2[1], code: 'disagree', label: 'Disagree', order: 2 },
-      ],
-    },
-    {
-      id: QUESTION_IDS[2],
-      code: 'Q3',
-      prompt: 'I enjoy following clear processes and checklists.',
-      order: 3,
-      options: [
-        { id: OPTION_IDS.q3[0], code: 'agree', label: 'Agree', order: 1 },
-        { id: OPTION_IDS.q3[1], code: 'disagree', label: 'Disagree', order: 2 },
-      ],
-    },
-    {
-      id: QUESTION_IDS[3],
-      code: 'Q4',
-      prompt: 'I am energized by persuading others to try new ideas.',
-      order: 4,
-      options: [
-        { id: OPTION_IDS.q4[0], code: 'agree', label: 'Agree', order: 1 },
-        { id: OPTION_IDS.q4[1], code: 'disagree', label: 'Disagree', order: 2 },
-      ],
-    },
-  ] as const;
-
-  for (const question of questions) {
-    await prisma.question.upsert({
+  for (const question of QUESTIONS) {
+    const persistedQuestion = await prisma.question.upsert({
       where: {
         assessmentVersionId_code: {
           assessmentVersionId: ASSESSMENT_VERSION_ID,
@@ -164,46 +253,66 @@ async function main() {
         },
       },
       update: {
-        id: question.id,
         prompt: question.prompt,
         order: question.order,
         type: 'single_choice',
         required: true,
+        metadata: {
+          discDimension: question.dimensionKey,
+          reverseScored: question.reverseScored,
+        },
       },
       create: {
-        id: question.id,
         assessmentVersionId: ASSESSMENT_VERSION_ID,
         code: question.code,
         prompt: question.prompt,
         order: question.order,
         type: 'single_choice',
         required: true,
+        metadata: {
+          discDimension: question.dimensionKey,
+          reverseScored: question.reverseScored,
+        },
       },
+      select: { id: true },
     });
 
-    for (const option of question.options) {
-      await prisma.questionOption.upsert({
-        where: {
-          questionId_code: {
-            questionId: question.id,
-            code: option.code,
-          },
-        },
-        update: {
-          id: option.id,
-          label: option.label,
-          order: option.order,
-        },
-        create: {
-          id: option.id,
-          questionId: question.id,
+    await prisma.scoringRule.deleteMany({ where: { questionId: persistedQuestion.id } });
+    await prisma.questionOption.deleteMany({ where: { questionId: persistedQuestion.id } });
+
+    for (const option of LIKERT_OPTIONS) {
+      const createdOption = await prisma.questionOption.create({
+        data: {
+          questionId: persistedQuestion.id,
           code: option.code,
           label: option.label,
           order: option.order,
+          metadata: { intensity: option.intensity },
+        },
+      });
+
+      const weight = question.reverseScored ? 4 - option.intensity : option.intensity;
+
+      await prisma.scoringRule.create({
+        data: {
+          assessmentVersionId: ASSESSMENT_VERSION_ID,
+          questionId: persistedQuestion.id,
+          optionId: createdOption.id,
+          impacts: [
+            {
+              dimensionKey: question.dimensionKey,
+              weight,
+            },
+          ],
         },
       });
     }
   }
+
+  await prisma.assessmentVersion.update({
+    where: { id: ASSESSMENT_VERSION_ID },
+    data: { questionCount: QUESTIONS.length },
+  });
 
   console.log('Seed complete.');
   console.log(`tenantId=${TENANT_ID}`);
