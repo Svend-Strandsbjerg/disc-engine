@@ -4,6 +4,7 @@ import type {
   SessionDetailReadModel,
 } from '@disc-foundation/application';
 import type { UUID } from '@disc-foundation/shared';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../services/prisma.js';
 import { getAccessContext } from '../services/access-context.js';
 
@@ -16,7 +17,9 @@ const resultInclude = {
   },
 } as const;
 
-const toResultDto = (row: any): ResultReadModel => {
+type ResultRow = Prisma.ProfileResultGetPayload<{ include: typeof resultInclude }>;
+
+const toResultDto = (row: ResultRow): ResultReadModel => {
   const auditTrail = (row.auditTrail ?? []) as Array<{ type?: string }>;
   const eventTypes = [...new Set(auditTrail.map((event) => event.type).filter(Boolean) as string[])];
 
