@@ -105,7 +105,7 @@ export class PrismaAssessmentSessionRepository implements AssessmentSessionRepos
   } | null> {
     const tenantId = getAccessContext().tenantId;
     const session = await prisma.assessmentSession.findFirst({
-      where: { id: sessionId },
+      where: { id: sessionId, tenantId },
       include: {
         _count: { select: { responses: true } },
         result: { select: { id: true } },
