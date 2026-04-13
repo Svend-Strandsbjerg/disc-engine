@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { createSession, getSession } from '@disc-foundation/application';
+import { createSession, getSession, getSessionQuestions } from '@disc-foundation/application';
 
 const createSessionSchema = z.object({
   assessmentVersionId: z.string().uuid(),
@@ -39,5 +39,31 @@ export const registerSessionRoutes = (app: FastifyInstance) => {
     }
 
     return reply.send(session);
+  });
+
+  app.get('/sessions/:sessionId/questions', async (request, reply) => {
+    const params = sessionParamsSchema.parse(request.params);
+
+    try {
+      const questions = await getSessionQuestions(
+        {
+          assessmentReadRepository: app.repositories.assessmentReadRepository,
+          assessmentSessionRepository: app.repositories.assessmentSessionRepository,
+        },
+        params.sessionId,
+      );
+
+      return reply.send(questions);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Session not found') {
+        return reply.code(404).send({ message: 'Session not found' });
+      }
+
+      if (error instanceof Error && error.message === 'Session assessment version not found') {
+        return reply.code(409).send({ message: 'Session assessment version not found' });
+      }
+
+      throw error;
+    }
   });
 };
