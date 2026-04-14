@@ -19,6 +19,14 @@ const resultInclude = {
 
 type ResultRow = Prisma.ProfileResultGetPayload<{ include: typeof resultInclude }>;
 
+const parseScoreBreakdown = (value: Prisma.JsonValue): ResultReadModel['scoreBreakdown'] => {
+  return value as unknown as ResultReadModel['scoreBreakdown'];
+};
+
+const parseRawResponsesSnapshot = (value: Prisma.JsonValue): ResultReadModel['rawResponsesSnapshot'] => {
+  return value as unknown as ResultReadModel['rawResponsesSnapshot'];
+};
+
 const toResultDto = (row: ResultRow): ResultReadModel => {
   const auditTrail = (row.auditTrail ?? []) as Array<{ type?: string }>;
   const eventTypes = [...new Set(auditTrail.map((event) => event.type).filter(Boolean) as string[])];
@@ -31,9 +39,9 @@ const toResultDto = (row: ResultRow): ResultReadModel => {
     scoringVersion: row.scoringVersion,
     status: row.session.status,
     calculatedAt: row.calculatedAt,
-    scoreBreakdown: row.scoreBreakdown as ResultReadModel['scoreBreakdown'],
+    scoreBreakdown: parseScoreBreakdown(row.scoreBreakdown),
     totalScores: row.totalScores as ResultReadModel['totalScores'],
-    rawResponsesSnapshot: row.rawResponsesSnapshot as ResultReadModel['rawResponsesSnapshot'],
+    rawResponsesSnapshot: parseRawResponsesSnapshot(row.rawResponsesSnapshot),
     auditTrailSummary: {
       eventCount: auditTrail.length,
       eventTypes,
