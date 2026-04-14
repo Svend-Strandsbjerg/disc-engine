@@ -114,6 +114,41 @@ export interface CandidateItemAiMetadata {
   aiSuggestedAlternatives?: string[];
 }
 
+export interface CandidateItemDuplicateMatch {
+  source: 'candidate_item' | 'promoted_question';
+  sourceId: UUID;
+  sourcePrompt: string;
+  similarityScore: number;
+  obviousDuplicate: boolean;
+}
+
+export interface CandidateItemIntakeMetadata {
+  normalizationVersion: string;
+  duplicateScreeningVersion: string;
+  likelyDuplicate: boolean;
+  obviousDuplicate: boolean;
+  duplicateMatches: CandidateItemDuplicateMatch[];
+}
+
+export type CandidateItemGenerationSourceType =
+  | 'ai_assistant'
+  | 'human_seeded'
+  | 'bulk_import'
+  | 'other';
+
+export interface CandidateItemGenerationBatch {
+  id: UUID;
+  generationId: string;
+  createdAt: Date;
+  sourceType: CandidateItemGenerationSourceType;
+  modelName: string;
+  promptVersion: string;
+  targetAssessmentDefinitionId: UUID;
+  context?: ContextApplicability;
+  rationaleNotes?: string;
+  normalizationVersion: string;
+}
+
 export interface CandidateItem {
   id: UUID;
   assessmentDefinitionId: UUID;
@@ -128,6 +163,8 @@ export interface CandidateItem {
   disambiguationTags: string[];
   uncertaintyProfile?: string;
   aiMetadata: CandidateItemAiMetadata;
+  generationBatchId?: UUID;
+  intakeMetadata?: CandidateItemIntakeMetadata;
   createdAt: Date;
   updatedAt: Date;
   promotedAt?: Date;

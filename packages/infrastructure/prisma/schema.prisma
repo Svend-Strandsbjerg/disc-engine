@@ -54,6 +54,13 @@ enum CandidateItemStatus {
   rejected
 }
 
+enum CandidateGenerationSourceType {
+  ai_assistant
+  human_seeded
+  bulk_import
+  other
+}
+
 model Tenant {
   id         String   @id @default(uuid())
   name       String
@@ -70,6 +77,7 @@ model Tenant {
   generatedReports          GeneratedReport[]
   candidateItems            CandidateItem[]
   candidateItemReviews      CandidateItemReview[]
+  candidateItemGenerationBatches CandidateItemGenerationBatch[]
 }
 
 model ApiKey {
@@ -338,6 +346,8 @@ model CandidateItem {
   aiRationale                 String?
   aiConfidence                Float?
   aiSuggestedAlternatives     String[]
+  generationBatchId           String?
+  intakeMetadata              Json?
   promotedAt                  DateTime?
   promotedAssessmentVersionId String?
   promotedQuestionId          String?
@@ -350,11 +360,34 @@ model CandidateItem {
   mirroredBy                CandidateItem[]      @relation("CandidateItemMirror")
   promotedAssessmentVersion AssessmentVersion?   @relation(fields: [promotedAssessmentVersionId], references: [id], onDelete: SetNull)
   promotedQuestion          Question?            @relation(fields: [promotedQuestionId], references: [id], onDelete: SetNull)
+  generationBatch          CandidateItemGenerationBatch? @relation(fields: [generationBatchId], references: [id], onDelete: SetNull)
   reviews                   CandidateItemReview[]
 
   @@index([tenantId, assessmentDefinitionId])
   @@index([promotedAssessmentVersionId])
   @@index([promotedQuestionId])
+  @@index([generationBatchId])
+}
+
+model CandidateItemGenerationBatch {
+  id                           String @id @default(uuid())
+  tenantId                     String
+  generationId                 String
+  sourceType                   CandidateGenerationSourceType
+  modelName                    String
+  promptVersion                String
+  targetAssessmentDefinitionId String
+  context                      String?
+  rationaleNotes               String?
+  normalizationVersion         String
+  createdAt                    DateTime @default(now())
+
+  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  targetAssessmentDef AssessmentDefinition @relation(fields: [targetAssessmentDefinitionId], references: [id], onDelete: Restrict)
+  candidateItems      CandidateItem[]
+
+  @@unique([tenantId, generationId])
+  @@index([tenantId, targetAssessmentDefinitionId, createdAt])
 }
 
 model CandidateItemReview {

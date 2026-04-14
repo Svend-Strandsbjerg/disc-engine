@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import type { CandidateItemRepository } from '@disc-foundation/application';
 import type {
   CandidateItem,
+  CandidateItemGenerationBatch,
   CandidateItemReview,
   CandidateItemSimilarityMatch,
   ContextApplicability,
@@ -63,6 +64,8 @@ const toCandidateItem = (record: {
   aiRationale: string | null;
   aiConfidence: number | null;
   aiSuggestedAlternatives: string[];
+  generationBatchId: string | null;
+  intakeMetadata: Prisma.JsonValue | null;
   createdAt: Date;
   updatedAt: Date;
   promotedAt: Date | null;
@@ -91,6 +94,10 @@ const toCandidateItem = (record: {
       ? { aiSuggestedAlternatives: record.aiSuggestedAlternatives }
       : {}),
   },
+  ...(record.generationBatchId ? { generationBatchId: record.generationBatchId } : {}),
+  ...(record.intakeMetadata && typeof record.intakeMetadata === 'object'
+    ? { intakeMetadata: record.intakeMetadata as CandidateItem['intakeMetadata'] }
+    : {}),
   createdAt: record.createdAt,
   updatedAt: record.updatedAt,
   ...(record.promotedAt ? { promotedAt: record.promotedAt } : {}),
@@ -130,6 +137,30 @@ const toCandidateItemReview = (record: {
   createdAt: record.createdAt,
 });
 
+const toGenerationBatch = (record: {
+  id: string;
+  generationId: string;
+  createdAt: Date;
+  sourceType: CandidateItemGenerationBatch['sourceType'];
+  modelName: string;
+  promptVersion: string;
+  targetAssessmentDefinitionId: string;
+  context: string | null;
+  rationaleNotes: string | null;
+  normalizationVersion: string;
+}): CandidateItemGenerationBatch => ({
+  id: record.id,
+  generationId: record.generationId,
+  createdAt: record.createdAt,
+  sourceType: record.sourceType,
+  modelName: record.modelName,
+  promptVersion: record.promptVersion,
+  targetAssessmentDefinitionId: record.targetAssessmentDefinitionId,
+  ...(record.context ? { context: record.context as ContextApplicability } : {}),
+  ...(record.rationaleNotes ? { rationaleNotes: record.rationaleNotes } : {}),
+  normalizationVersion: record.normalizationVersion,
+});
+
 export class PrismaCandidateItemRepository implements CandidateItemRepository {
   async createCandidateItem(input: {
     assessmentDefinitionId: UUID;
@@ -149,6 +180,8 @@ export class PrismaCandidateItemRepository implements CandidateItemRepository {
     aiRationale?: string;
     aiConfidence?: number;
     aiSuggestedAlternatives?: string[];
+    generationBatchId?: UUID;
+    intakeMetadata?: Record<string, unknown>;
   }): Promise<CandidateItem> {
     const tenantId = getTenantId();
 
@@ -190,10 +223,73 @@ export class PrismaCandidateItemRepository implements CandidateItemRepository {
         aiRationale: input.aiRationale ?? null,
         aiConfidence: input.aiConfidence ?? null,
         aiSuggestedAlternatives: input.aiSuggestedAlternatives ?? [],
+        generationBatchId: input.generationBatchId ?? null,
+        intakeMetadata: input.intakeMetadata ?? Prisma.JsonNull,
       },
     });
 
     return toCandidateItem(created);
+  }
+
+  async createGenerationBatch(input: {
+    generationId: string;
+    sourceType: CandidateItemGenerationBatch['sourceType'];
+    modelName: string;
+    promptVersion: string;
+    targetAssessmentDefinitionId: UUID;
+    context?: ContextApplicability;
+    rationaleNotes?: string;
+    normalizationVersion: string;
+  }): Promise<CandidateItemGenerationBatch> {
+    const tenantId = getTenantId();
+    const assessment = await prisma.assessmentDefinition.findFirst({
+      where: { id: input.targetAssessmentDefinitionId, tenantId },
+      select: { id: true },
+    });
+    if (!assessment) throw new Error('Assessment definition not found');
+
+    const created = await prisma.candidateItemGenerationBatch.create({
+      data: {
+        tenantId,
+        generationId: input.generationId,
+        sourceType: input.sourceType,
+        modelName: input.modelName,
+        promptVersion: input.promptVersion,
+        targetAssessmentDefinitionId: input.targetAssessmentDefinitionId,
+        context: input.context ?? null,
+        rationaleNotes: input.rationaleNotes ?? null,
+        normalizationVersion: input.normalizationVersion,
+      },
+    });
+
+    return toGenerationBatch(created);
+  }
+
+  async getDuplicateScreeningCorpus(input: { assessmentDefinitionId: UUID }): Promise<{
+    candidateItems: Array<{ id: UUID; prompt: string }>;
+    promotedQuestions: Array<{ id: UUID; prompt: string }>;
+  }> {
+    const tenantId = getTenantId();
+    const [candidateItems, promotedQuestions] = await Promise.all([
+      prisma.candidateItem.findMany({
+        where: {
+          tenantId,
+          assessmentDefinitionId: input.assessmentDefinitionId,
+        },
+        select: { id: true, prompt: true },
+      }),
+      prisma.question.findMany({
+        where: {
+          assessmentVersion: {
+            tenantId,
+            assessmentDefinitionId: input.assessmentDefinitionId,
+          },
+        },
+        select: { id: true, prompt: true },
+      }),
+    ]);
+
+    return { candidateItems, promotedQuestions };
   }
 
   async listCandidateItems(input: {
