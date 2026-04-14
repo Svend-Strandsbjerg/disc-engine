@@ -277,27 +277,50 @@ async function main() {
       select: { id: true },
     });
 
-    await prisma.scoringRule.deleteMany({ where: { questionId: persistedQuestion.id } });
-    await prisma.questionOption.deleteMany({ where: { questionId: persistedQuestion.id } });
+    await prisma.questionOption.deleteMany({
+      where: {
+        questionId: persistedQuestion.id,
+        code: { notIn: LIKERT_OPTIONS.map((option) => option.code) },
+      },
+    });
 
     for (const option of LIKERT_OPTIONS) {
-      const createdOption = await prisma.questionOption.create({
-        data: {
+      const persistedOption = await prisma.questionOption.upsert({
+        where: {
+          questionId_code: {
+            questionId: persistedQuestion.id,
+            code: option.code,
+          },
+        },
+        update: {
+          label: option.label,
+          order: option.order,
+          metadata: { intensity: option.intensity },
+        },
+        create: {
           questionId: persistedQuestion.id,
           code: option.code,
           label: option.label,
           order: option.order,
           metadata: { intensity: option.intensity },
         },
+        select: { id: true },
       });
 
       const weight = question.reverseScored ? 4 - option.intensity : option.intensity;
+
+      await prisma.scoringRule.deleteMany({
+        where: {
+          questionId: persistedQuestion.id,
+          optionId: persistedOption.id,
+        },
+      });
 
       await prisma.scoringRule.create({
         data: {
           assessmentVersionId: ASSESSMENT_VERSION_ID,
           questionId: persistedQuestion.id,
-          optionId: createdOption.id,
+          optionId: persistedOption.id,
           impacts: [
             {
               dimensionKey: question.dimensionKey,
@@ -307,6 +330,15 @@ async function main() {
         },
       });
     }
+
+    await prisma.scoringRule.deleteMany({
+      where: {
+        questionId: persistedQuestion.id,
+        option: {
+          code: { notIn: LIKERT_OPTIONS.map((option) => option.code) },
+        },
+      },
+    });
   }
 
   await prisma.assessmentVersion.update({
