@@ -74,6 +74,7 @@ export interface SessionQuestionOptionDto {
 export interface SessionQuestionDto {
   id: UUID;
   prompt: string;
+  text: string;
   order: number;
   responseType: QuestionType;
   options?: SessionQuestionOptionDto[];
@@ -104,6 +105,9 @@ export const getSessionQuestions = async (
   if (!version) {
     throw new Error('Session assessment version not found');
   }
+  if (version.questions.length === 0) {
+    throw new Error('Session assessment questions not found');
+  }
 
   return {
     sessionId: session.id,
@@ -111,6 +115,7 @@ export const getSessionQuestions = async (
     questions: [...version.questions].sort(byStableOrder).map((question) => ({
       id: question.id,
       prompt: question.prompt,
+      text: question.prompt,
       order: question.order,
       responseType: question.type,
       ...(question.options.length > 0
