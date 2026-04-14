@@ -21,6 +21,18 @@ export interface SessionResultDto {
   scoringVersion: string;
   completedAt: Date;
   lifecycleStatus: SessionLifecycleStatus;
+  dimensions: {
+    D: number;
+    I: number;
+    S: number;
+    C: number;
+  };
+  normalizedDimensions: {
+    D: number;
+    I: number;
+    S: number;
+    C: number;
+  };
   scores: {
     raw: {
       D: number;
@@ -325,7 +337,13 @@ const toDiscScores = (input: {
   assessmentVersion: AssessmentVersion;
 }): Pick<
   SessionResultDto,
-  'scores' | 'primaryDimension' | 'secondaryDimension' | 'profileSummary' | 'qualityIndicators'
+  | 'dimensions'
+  | 'normalizedDimensions'
+  | 'scores'
+  | 'primaryDimension'
+  | 'secondaryDimension'
+  | 'profileSummary'
+  | 'qualityIndicators'
 > => {
   const { result, assessmentVersion } = input;
   const byDimension = new Map(
@@ -350,6 +368,8 @@ const toDiscScores = (input: {
   const ranked = rankDimensions(scores);
 
   return {
+    dimensions: raw,
+    normalizedDimensions: normalized,
     scores,
     primaryDimension: ranked[0]?.dimension ?? 'D',
     secondaryDimension: ranked[1]?.dimension ?? ranked[0]?.dimension ?? 'I',
