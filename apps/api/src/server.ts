@@ -23,6 +23,14 @@ import { registerVersionEditingRoutes } from './routes/version-editing.js';
 
 const app = Fastify({ logger: true });
 
+const routeDebugEnabled = process.env.ROUTE_DEBUG_ENABLED === 'true';
+const runtimeCommitSha =
+  process.env.RAILWAY_GIT_COMMIT_SHA ??
+  process.env.RAILWAY_GIT_COMMIT ??
+  process.env.SOURCE_VERSION ??
+  process.env.VERCEL_GIT_COMMIT_SHA ??
+  'unknown';
+
 const assessmentRepository = new PrismaAssessmentRepository();
 const reportTemplateRepository = new PrismaReportTemplateRepository();
 
@@ -117,6 +125,13 @@ const start = async () => {
   try {
     const port = Number(process.env.PORT ?? 3000);
     await app.listen({ port, host: '0.0.0.0' });
+
+    app.log.info({ runtimeCommitSha }, 'API runtime commit SHA');
+
+    if (routeDebugEnabled) {
+      const routeTree = app.printRoutes();
+      app.log.info({ routeTree }, 'Registered Fastify routes');
+    }
   } catch (error) {
     app.log.error(error);
     process.exit(1);
