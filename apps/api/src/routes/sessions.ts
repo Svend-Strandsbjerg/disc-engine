@@ -44,6 +44,8 @@ export const registerSessionRoutes = (app: FastifyInstance) => {
   app.get('/sessions/:sessionId/questions', async (request, reply) => {
     const params = sessionParamsSchema.parse(request.params);
 
+    request.log.info({ sessionId: params.sessionId }, 'questions route hit');
+
     try {
       const questions = await getSessionQuestions(
         {
