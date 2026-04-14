@@ -99,6 +99,70 @@ export interface ScoreBreakdownItem {
   evidence: string[];
 }
 
+export type DiscAxis = 'tempo' | 'focus';
+export type AxisDirection = 'highTempo' | 'lowTempo' | 'taskFocus' | 'peopleFocus';
+export type ItemRole = 'core' | 'mirror' | 'tiebreaker';
+
+export interface ItemContribution {
+  questionId: UUID;
+  questionCode: string;
+  responseId: UUID;
+  axis: DiscAxis;
+  axisDirection: AxisDirection;
+  role: ItemRole;
+  reverseKeyed: boolean;
+  selectedOptionId: UUID;
+  selectedOptionCode: string;
+  selectedOptionOrder: number;
+  selectedIntensity: number;
+  alignedValue: number;
+  weight: number;
+  weightedContribution: number;
+  contextApplicability?: string[];
+}
+
+export interface MirrorConsistencyCheck {
+  mirrorQuestionCode: string;
+  mirroredQuestionCode: string;
+  mirrorResponseId: UUID;
+  mirroredResponseId?: UUID;
+  mirrorAlignedValue: number;
+  mirroredAlignedValue?: number;
+  comparisonScaleMax: number;
+  contradictionThreshold: number;
+  absoluteDifference?: number;
+  contradicted: boolean;
+}
+
+export interface ItemResponseDistribution {
+  questionId: UUID;
+  questionCode: string;
+  axisDirection: AxisDirection;
+  role: ItemRole;
+  responseCount: number;
+  optionSelections: Record<string, number>;
+}
+
+export interface ItemDiagnostics {
+  missingMetadataQuestionIds: UUID[];
+  mirrorOrphans: string[];
+  zeroWeightQuestionIds: UUID[];
+  negativeWeightQuestionIds: UUID[];
+}
+
+export interface MeasurementAnalysisSnapshot {
+  version: 'disc-v3-item-bank';
+  itemContributions: ItemContribution[];
+  mirrorConsistency: {
+    mirrorPairs: number;
+    mirrorContradictions: number;
+    contradictionRate: number;
+    checks: MirrorConsistencyCheck[];
+  };
+  responseDistributions: ItemResponseDistribution[];
+  diagnostics?: ItemDiagnostics;
+}
+
 export interface ProfileResult {
   id: UUID;
   sessionId: UUID;
@@ -111,6 +175,7 @@ export interface ProfileResult {
   rawResponsesSnapshot: Response[];
   calculatedAt: Date;
   auditTrail: AuditableEvent[];
+  measurementAnalysis?: MeasurementAnalysisSnapshot;
 }
 
 export interface ReportTemplateDefinition {
