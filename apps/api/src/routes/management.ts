@@ -6,6 +6,7 @@ import {
   createAssessmentVersion,
   getActiveAssessmentVersion,
   getAssessmentVersionById,
+  getPilotItemBankAnalysis,
   publishAssessmentVersion,
   validateAssessmentVersion,
 } from '@disc-foundation/application';
@@ -24,6 +25,15 @@ const cloneVersionSchema = z.object({
   scoringVersion: z.string().min(1),
 });
 const idParamsSchema = z.object({ id: z.string().uuid() });
+
+const pilotAnalysisQuerySchema = z.object({
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+  minSampleSize: z.coerce.number().int().positive().optional(),
+  concentrationThreshold: z.coerce.number().min(0).max(1).optional(),
+  separationThreshold: z.coerce.number().min(0).max(1).optional(),
+  mirrorContradictionThreshold: z.coerce.number().min(0).max(1).optional(),
+});
 
 export const registerManagementRoutes = (app: FastifyInstance) => {
   app.post('/assessments', async (request, reply) => {
@@ -74,6 +84,49 @@ export const registerManagementRoutes = (app: FastifyInstance) => {
     );
 
     return reply.send(validation);
+  });
+
+  app.get('/internal/versions/:id/pilot-analysis', async (request, reply) => {
+    const params = idParamsSchema.parse(request.params);
+    const query = pilotAnalysisQuerySchema.parse(request.query);
+
+    try {
+      const analysis = await getPilotItemBankAnalysis(
+        {
+          assessmentReadRepository: app.repositories.assessmentReadRepository,
+          resultQueryRepository: app.repositories.resultQueryRepository,
+        },
+        {
+          assessmentVersionId: params.id,
+          ...(query.from ? { from: new Date(query.from) } : {}),
+          ...(query.to ? { to: new Date(query.to) } : {}),
+          ...(query.minSampleSize !== undefined ? { minSampleSize: query.minSampleSize } : {}),
+          ...(query.concentrationThreshold !== undefined
+            ? { concentrationThreshold: query.concentrationThreshold }
+            : {}),
+          ...(query.separationThreshold !== undefined
+            ? { separationThreshold: query.separationThreshold }
+            : {}),
+          ...(query.mirrorContradictionThreshold !== undefined
+            ? { mirrorContradictionThreshold: query.mirrorContradictionThreshold }
+            : {}),
+        },
+      );
+
+      return reply.send(analysis);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Assessment version not found') {
+        return reply.code(404).send({ message: error.message });
+      }
+      if (
+        error instanceof Error &&
+        error.message === 'Pilot analysis is only available for disc-v3-item-bank'
+      ) {
+        return reply.code(400).send({ message: error.message });
+      }
+
+      throw error;
+    }
   });
 
   app.post('/versions/:id/publish', async (request, reply) => {
