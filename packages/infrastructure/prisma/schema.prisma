@@ -29,6 +29,31 @@ enum ReportTemplateStatus {
   published
 }
 
+enum DiscAxis {
+  tempo
+  focus
+}
+
+enum AxisDirection {
+  highTempo
+  lowTempo
+  taskFocus
+  peopleFocus
+}
+
+enum ItemRole {
+  core
+  mirror
+  tiebreaker
+}
+
+enum CandidateItemStatus {
+  candidate
+  needs_revision
+  approved
+  rejected
+}
+
 model Tenant {
   id         String   @id @default(uuid())
   name       String
@@ -43,6 +68,7 @@ model Tenant {
   sessions                  AssessmentSession[]
   profileResults            ProfileResult[]
   generatedReports          GeneratedReport[]
+  candidateItems            CandidateItem[]
 }
 
 model ApiKey {
@@ -70,6 +96,7 @@ model AssessmentDefinition {
   tenant   Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   versions AssessmentVersion[]
   sessions AssessmentSession[]
+  candidateItems CandidateItem[]
 
   @@unique([tenantId, key])
 }
@@ -94,6 +121,7 @@ model AssessmentVersion {
   sessions             AssessmentSession[]
   profileResults       ProfileResult[]
   reportTemplates      ReportTemplate[]
+  promotedCandidateItems CandidateItem[]
 
   @@unique([assessmentDefinitionId, versionNumber])
 }
@@ -112,6 +140,7 @@ model Question {
   options           QuestionOption[]
   responses         Response[]
   scoringRules      ScoringRule[]
+  sourceCandidateItems CandidateItem[]
 
   @@unique([assessmentVersionId, code])
 }
@@ -286,4 +315,65 @@ model GeneratedReport {
 
   @@index([sessionId])
   @@index([templateId])
+}
+
+model CandidateItem {
+  id                          String   @id @default(uuid())
+  tenantId                    String
+  assessmentDefinitionId      String
+  prompt                      String
+  axis                        DiscAxis
+  axisDirection               AxisDirection
+  weight                      Float
+  reverseKeyed                Boolean
+  role                        ItemRole
+  mirrorCandidateItemId       String?
+  contextApplicability        String[]
+  disambiguationTags          String[] @default([])
+  uncertaintyProfile          String?
+  aiGenerated                 Boolean  @default(false)
+  aiModel                     String?
+  aiPromptVersion             String?
+  aiRationale                 String?
+  aiConfidence                Float?
+  aiSuggestedAlternatives     String[]
+  promotedAt                  DateTime?
+  promotedAssessmentVersionId String?
+  promotedQuestionId          String?
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  tenant                    Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  assessmentDefinition      AssessmentDefinition @relation(fields: [assessmentDefinitionId], references: [id], onDelete: Restrict)
+  mirrorCandidateItem       CandidateItem?       @relation("CandidateItemMirror", fields: [mirrorCandidateItemId], references: [id], onDelete: SetNull)
+  mirroredBy                CandidateItem[]      @relation("CandidateItemMirror")
+  promotedAssessmentVersion AssessmentVersion?   @relation(fields: [promotedAssessmentVersionId], references: [id], onDelete: SetNull)
+  promotedQuestion          Question?            @relation(fields: [promotedQuestionId], references: [id], onDelete: SetNull)
+  reviews                   CandidateItemReview[]
+
+  @@index([tenantId, assessmentDefinitionId])
+  @@index([promotedAssessmentVersionId])
+  @@index([promotedQuestionId])
+}
+
+model CandidateItemReview {
+  id                     String              @id @default(uuid())
+  tenantId               String
+  candidateItemId        String
+  clarityScore           Float
+  ambiguityRisk          Float
+  doubleBarreledRisk     Float
+  socialDesirabilityRisk Float
+  discriminationPotential Float
+  mirrorUsefulness       Float
+  overlapRisk            Float
+  reviewerNotes          String?
+  status                 CandidateItemStatus @default(candidate)
+  nearDuplicateQuestionIds String[]
+  createdAt              DateTime            @default(now())
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  candidateItem CandidateItem @relation(fields: [candidateItemId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, candidateItemId, createdAt])
 }

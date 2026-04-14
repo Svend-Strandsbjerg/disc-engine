@@ -1,13 +1,18 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
+  compareCandidateItemSimilarity,
   cloneAssessmentVersion,
+  createCandidateItem,
   createAssessmentDefinition,
   createAssessmentVersion,
   getActiveAssessmentVersion,
   getAssessmentVersionById,
   getPilotItemBankAnalysis,
   publishAssessmentVersion,
+  promoteCandidateItemsToDraftVersion,
+  reviewCandidateItem,
+  listCandidateItems,
   validateAssessmentVersion,
 } from '@disc-foundation/application';
 
@@ -33,6 +38,55 @@ const pilotAnalysisQuerySchema = z.object({
   concentrationThreshold: z.coerce.number().min(0).max(1).optional(),
   separationThreshold: z.coerce.number().min(0).max(1).optional(),
   mirrorContradictionThreshold: z.coerce.number().min(0).max(1).optional(),
+});
+
+const createCandidateItemSchema = z.object({
+  assessmentDefinitionId: z.string().uuid(),
+  prompt: z.string().min(5),
+  axis: z.enum(['tempo', 'focus']),
+  axisDirection: z.enum(['highTempo', 'lowTempo', 'taskFocus', 'peopleFocus']),
+  weight: z.number().positive(),
+  reverseKeyed: z.boolean(),
+  role: z.enum(['core', 'mirror', 'tiebreaker']),
+  mirrorCandidateItemId: z.string().uuid().optional(),
+  contextApplicability: z.array(z.enum(['work', 'private', 'generic'])).min(1),
+  disambiguationTags: z.array(z.string().min(1)).optional(),
+  uncertaintyProfile: z.string().optional(),
+  aiGenerated: z.boolean().default(false),
+  aiModel: z.string().optional(),
+  aiPromptVersion: z.string().optional(),
+  aiRationale: z.string().optional(),
+  aiConfidence: z.number().min(0).max(1).optional(),
+  aiSuggestedAlternatives: z.array(z.string()).optional(),
+});
+
+const candidateItemReviewSchema = z.object({
+  clarityScore: z.number().min(0).max(1),
+  ambiguityRisk: z.number().min(0).max(1),
+  doubleBarreledRisk: z.number().min(0).max(1),
+  socialDesirabilityRisk: z.number().min(0).max(1),
+  discriminationPotential: z.number().min(0).max(1),
+  mirrorUsefulness: z.number().min(0).max(1),
+  overlapRisk: z.number().min(0).max(1),
+  reviewerNotes: z.string().optional(),
+  status: z.enum(['candidate', 'needs_revision', 'approved', 'rejected']),
+  nearDuplicateQuestionIds: z.array(z.string().uuid()).optional(),
+});
+
+const candidateItemListQuerySchema = z.object({
+  status: z.enum(['candidate', 'needs_revision', 'approved', 'rejected']).optional(),
+  includePromoted: z.coerce.boolean().optional(),
+});
+
+const candidateSimilarityBodySchema = z.object({
+  assessmentDefinitionId: z.string().uuid(),
+  prompt: z.string().min(5),
+  threshold: z.number().min(0).max(1).optional(),
+  limit: z.number().int().positive().max(50).optional(),
+});
+
+const promoteCandidatesBodySchema = z.object({
+  candidateItemIds: z.array(z.string().uuid()).min(1),
 });
 
 export const registerManagementRoutes = (app: FastifyInstance) => {
@@ -152,6 +206,61 @@ export const registerManagementRoutes = (app: FastifyInstance) => {
       validation: result.validation,
       warnings: result.validation.warnings,
     });
+  });
+
+  app.post('/internal/candidate-items', async (request, reply) => {
+    const body = createCandidateItemSchema.parse(request.body);
+    const created = await createCandidateItem(
+      { candidateItemRepository: app.repositories.candidateItemRepository },
+      body,
+    );
+    return reply.code(201).send(created);
+  });
+
+  app.get('/internal/assessments/:id/candidate-items', async (request, reply) => {
+    const params = idParamsSchema.parse(request.params);
+    const query = candidateItemListQuerySchema.parse(request.query);
+    const items = await listCandidateItems(
+      { candidateItemRepository: app.repositories.candidateItemRepository },
+      {
+        assessmentDefinitionId: params.id,
+        ...(query.status ? { status: query.status } : {}),
+        ...(query.includePromoted !== undefined ? { includePromoted: query.includePromoted } : {}),
+      },
+    );
+    return reply.send(items);
+  });
+
+  app.post('/internal/candidate-items/:id/reviews', async (request, reply) => {
+    const params = idParamsSchema.parse(request.params);
+    const body = candidateItemReviewSchema.parse(request.body);
+    const created = await reviewCandidateItem(
+      { candidateItemRepository: app.repositories.candidateItemRepository },
+      { ...body, candidateItemId: params.id },
+    );
+    return reply.code(201).send(created);
+  });
+
+  app.post('/internal/candidate-items/similarity', async (request, reply) => {
+    const body = candidateSimilarityBodySchema.parse(request.body);
+    const matches = await compareCandidateItemSimilarity(
+      { candidateItemRepository: app.repositories.candidateItemRepository },
+      body,
+    );
+    return reply.send(matches);
+  });
+
+  app.post('/internal/versions/:id/promote-candidates', async (request, reply) => {
+    const params = idParamsSchema.parse(request.params);
+    const body = promoteCandidatesBodySchema.parse(request.body);
+    const promoted = await promoteCandidateItemsToDraftVersion(
+      {
+        candidateItemRepository: app.repositories.candidateItemRepository,
+        assessmentReadRepository: app.repositories.assessmentReadRepository,
+      },
+      { assessmentVersionId: params.id, candidateItemIds: body.candidateItemIds },
+    );
+    return reply.send({ promoted });
   });
 
   app.get('/versions/:id', async (request, reply) => {

@@ -2,6 +2,11 @@ import type {
   AssessmentDefinition,
   AssessmentSession,
   AssessmentVersion,
+  CandidateItem,
+  CandidateItemReview,
+  CandidateItemSimilarityMatch,
+  CandidateItemStatus,
+  ContextApplicability,
   GeneratedReport,
   InterpretationRule,
   ProfileResult,
@@ -99,6 +104,63 @@ export interface AssessmentWriteRepository {
     optionId?: UUID;
   }): Promise<ScoringRule>;
   removeScoringRule(id: UUID): Promise<void>;
+}
+
+export interface CandidateItemRepository {
+  createCandidateItem(input: {
+    assessmentDefinitionId: UUID;
+    prompt: string;
+    axis: CandidateItem['axis'];
+    axisDirection: CandidateItem['axisDirection'];
+    weight: number;
+    reverseKeyed: boolean;
+    role: CandidateItem['role'];
+    mirrorCandidateItemId?: UUID;
+    contextApplicability: ContextApplicability[];
+    disambiguationTags?: string[];
+    uncertaintyProfile?: string;
+    aiGenerated: boolean;
+    aiModel?: string;
+    aiPromptVersion?: string;
+    aiRationale?: string;
+    aiConfidence?: number;
+    aiSuggestedAlternatives?: string[];
+  }): Promise<CandidateItem>;
+  listCandidateItems(input: {
+    assessmentDefinitionId: UUID;
+    status?: CandidateItemStatus;
+    includePromoted?: boolean;
+  }): Promise<Array<CandidateItem & { latestReview?: CandidateItemReview }>>;
+  createCandidateItemReview(input: {
+    candidateItemId: UUID;
+    clarityScore: number;
+    ambiguityRisk: number;
+    doubleBarreledRisk: number;
+    socialDesirabilityRisk: number;
+    discriminationPotential: number;
+    mirrorUsefulness: number;
+    overlapRisk: number;
+    reviewerNotes?: string;
+    status: CandidateItemStatus;
+    nearDuplicateQuestionIds?: UUID[];
+  }): Promise<CandidateItemReview>;
+  getLatestCandidateItemReview(candidateItemId: UUID): Promise<CandidateItemReview | null>;
+  findSimilarItems(input: {
+    assessmentDefinitionId: UUID;
+    prompt: string;
+    threshold?: number;
+    limit?: number;
+  }): Promise<CandidateItemSimilarityMatch[]>;
+  promoteApprovedCandidates(input: {
+    assessmentVersionId: UUID;
+    candidateItemIds: UUID[];
+  }): Promise<
+    Array<{
+      candidateItemId: UUID;
+      questionId: UUID;
+      questionCode: string;
+    }>
+  >;
 }
 
 export interface AssessmentSessionRepository {

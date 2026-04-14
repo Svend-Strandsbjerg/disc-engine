@@ -102,6 +102,62 @@ export interface ScoreBreakdownItem {
 export type DiscAxis = 'tempo' | 'focus';
 export type AxisDirection = 'highTempo' | 'lowTempo' | 'taskFocus' | 'peopleFocus';
 export type ItemRole = 'core' | 'mirror' | 'tiebreaker';
+export type CandidateItemStatus = 'candidate' | 'needs_revision' | 'approved' | 'rejected';
+export type ContextApplicability = 'work' | 'private' | 'generic';
+
+export interface CandidateItemAiMetadata {
+  aiGenerated: boolean;
+  aiModel?: string;
+  aiPromptVersion?: string;
+  aiRationale?: string;
+  aiConfidence?: number;
+  aiSuggestedAlternatives?: string[];
+}
+
+export interface CandidateItem {
+  id: UUID;
+  assessmentDefinitionId: UUID;
+  prompt: string;
+  axis: DiscAxis;
+  axisDirection: AxisDirection;
+  weight: number;
+  reverseKeyed: boolean;
+  role: ItemRole;
+  mirrorCandidateItemId?: UUID;
+  contextApplicability: ContextApplicability[];
+  disambiguationTags: string[];
+  uncertaintyProfile?: string;
+  aiMetadata: CandidateItemAiMetadata;
+  createdAt: Date;
+  updatedAt: Date;
+  promotedAt?: Date;
+  promotedAssessmentVersionId?: UUID;
+  promotedQuestionId?: UUID;
+}
+
+export interface CandidateItemReview {
+  id: UUID;
+  candidateItemId: UUID;
+  clarityScore: number;
+  ambiguityRisk: number;
+  doubleBarreledRisk: number;
+  socialDesirabilityRisk: number;
+  discriminationPotential: number;
+  mirrorUsefulness: number;
+  overlapRisk: number;
+  reviewerNotes?: string;
+  status: CandidateItemStatus;
+  nearDuplicateQuestionIds: UUID[];
+  createdAt: Date;
+}
+
+export interface CandidateItemSimilarityMatch {
+  questionId: UUID;
+  questionCode: string;
+  prompt: string;
+  similarityScore: number;
+  nearDuplicate: boolean;
+}
 
 export interface ItemContribution {
   questionId: UUID;

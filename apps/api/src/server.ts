@@ -3,6 +3,7 @@ import {
   ApiKeyService,
   PrismaAssessmentRepository,
   PrismaAssessmentSessionRepository,
+  PrismaCandidateItemRepository,
   PrismaGeneratedReportRepository,
   PrismaReportTemplateRepository,
   PrismaResponseRepository,
@@ -44,6 +45,7 @@ const repositories = {
   reportTemplateReadRepository: reportTemplateRepository,
   reportTemplateWriteRepository: reportTemplateRepository,
   generatedReportRepository: new PrismaGeneratedReportRepository(),
+  candidateItemRepository: new PrismaCandidateItemRepository(),
 };
 
 const services = {

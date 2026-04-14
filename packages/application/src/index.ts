@@ -13,3 +13,4 @@ export * from './use-cases/report-template-management.js';
 export * from './use-cases/report-template-editing.js';
 export * from './use-cases/api-key.js';
 export * from './use-cases/pilot-analysis.js';
+export * from './use-cases/candidate-item.js';
