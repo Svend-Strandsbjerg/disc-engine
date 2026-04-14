@@ -114,3 +114,170 @@ test('disc-v1-likert-16 uses total-share normalization for more stable profiles'
   assert.equal(d?.normalizedScore, 66.67);
   assert.equal(i?.normalizedScore, 33.33);
 });
+
+test('disc-v2-axes derives D/I/S/C from axis scores with reverse and mirror consistency checks', () => {
+  const axisVersion: AssessmentVersion = {
+    ...assessmentVersion,
+    scoringVersion: 'disc-v2-axes',
+    dimensions: [
+      { id: 'dim-d', key: 'D', label: 'Dominance', order: 1 },
+      { id: 'dim-i', key: 'I', label: 'Influence', order: 2 },
+      { id: 'dim-s', key: 'S', label: 'Steadiness', order: 3 },
+      { id: 'dim-c', key: 'C', label: 'Conscientiousness', order: 4 },
+    ],
+    questions: [
+      {
+        id: 'q1',
+        assessmentVersionId: 'version-1',
+        code: 'Q1',
+        prompt: 'Q1',
+        type: 'single_choice',
+        order: 1,
+        required: true,
+        metadata: {
+          axis: 'tempo',
+          axisDirection: 'highTempo',
+          weight: 2,
+          reverseKeyed: false,
+          role: 'core',
+        },
+        options: [
+          {
+            id: 'q1o1',
+            questionId: 'q1',
+            code: 'sd',
+            label: 'sd',
+            order: 1,
+            metadata: { intensity: 0 },
+          },
+          {
+            id: 'q1o2',
+            questionId: 'q1',
+            code: 'sa',
+            label: 'sa',
+            order: 5,
+            metadata: { intensity: 4 },
+          },
+        ],
+      },
+      {
+        id: 'q2',
+        assessmentVersionId: 'version-1',
+        code: 'Q2',
+        prompt: 'Q2',
+        type: 'single_choice',
+        order: 2,
+        required: true,
+        metadata: {
+          axis: 'tempo',
+          axisDirection: 'highTempo',
+          weight: 1,
+          reverseKeyed: true,
+          role: 'mirror',
+          mirrorOf: 'Q1',
+        },
+        options: [
+          {
+            id: 'q2o1',
+            questionId: 'q2',
+            code: 'sd',
+            label: 'sd',
+            order: 1,
+            metadata: { intensity: 0 },
+          },
+          {
+            id: 'q2o2',
+            questionId: 'q2',
+            code: 'sa',
+            label: 'sa',
+            order: 5,
+            metadata: { intensity: 4 },
+          },
+        ],
+      },
+      {
+        id: 'q3',
+        assessmentVersionId: 'version-1',
+        code: 'Q3',
+        prompt: 'Q3',
+        type: 'single_choice',
+        order: 3,
+        required: true,
+        metadata: {
+          axis: 'focus',
+          axisDirection: 'taskFocus',
+          weight: 1,
+          reverseKeyed: false,
+          role: 'core',
+        },
+        options: [
+          {
+            id: 'q3o1',
+            questionId: 'q3',
+            code: 'sd',
+            label: 'sd',
+            order: 1,
+            metadata: { intensity: 0 },
+          },
+          {
+            id: 'q3o2',
+            questionId: 'q3',
+            code: 'sa',
+            label: 'sa',
+            order: 5,
+            metadata: { intensity: 4 },
+          },
+        ],
+      },
+    ],
+  };
+
+  const axisResponses: Response[] = [
+    {
+      id: 'response-1',
+      sessionId: 'session-1',
+      questionId: 'q1',
+      selectedOptionIds: ['q1o2'],
+      value: null,
+      createdAt: new Date('2026-01-02T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+    },
+    {
+      id: 'response-2',
+      sessionId: 'session-1',
+      questionId: 'q2',
+      selectedOptionIds: ['q2o2'],
+      value: null,
+      createdAt: new Date('2026-01-02T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+    },
+    {
+      id: 'response-3',
+      sessionId: 'session-1',
+      questionId: 'q3',
+      selectedOptionIds: ['q3o2'],
+      value: null,
+      createdAt: new Date('2026-01-02T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+    },
+  ];
+
+  const result = calculateProfileResult({
+    responses: axisResponses,
+    assessmentVersion: axisVersion,
+  });
+  assert.deepEqual(result.totalScores, { D: 12, I: 8, S: 0, C: 4 });
+  assert.equal(
+    result.scoreBreakdown.find((item) => item.dimensionKey === 'D')?.normalizedScore,
+    50,
+  );
+
+  const mirrorEvent = result.auditTrail.find(
+    (event) => event.type === 'mirror_consistency_evaluated',
+  );
+  assert.deepEqual(mirrorEvent?.payload, {
+    mirrorPairs: 1,
+    mirrorContradictions: 1,
+    contradictionRate: 1,
+  });
+});

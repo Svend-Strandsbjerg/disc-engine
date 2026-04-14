@@ -1,4 +1,5 @@
 import {
+  calculateProfileResult,
   createDefaultScoringEngine,
   type AssessmentVersion,
   type ProfileResult,
@@ -53,12 +54,16 @@ export interface SessionResultDto {
       flatResponse: boolean;
       extremeResponse: boolean;
       missingDimensionContribution: boolean;
+      mirrorInconsistency: boolean;
     };
     metrics: {
       flatResponseRate: number;
       highExtremeRate: number;
       lowExtremeRate: number;
       missingDimensions: Array<'D' | 'I' | 'S' | 'C'>;
+      mirrorContradictionRate: number;
+      mirrorContradictions: number;
+      mirrorPairs: number;
     };
   };
 }
@@ -181,7 +186,9 @@ const extractSelectedOptionOrders = (input: {
   assessmentVersion: AssessmentVersion;
   responses: Response[];
 }): number[] => {
-  const questionById = new Map(input.assessmentVersion.questions.map((question) => [question.id, question] as const));
+  const questionById = new Map(
+    input.assessmentVersion.questions.map((question) => [question.id, question] as const),
+  );
   return input.responses
     .map((response) => {
       const question = questionById.get(response.questionId);
@@ -193,12 +200,30 @@ const extractSelectedOptionOrders = (input: {
 };
 
 const buildQualityIndicators = (input: {
+  result: ProfileResult;
   scoringVersion: string;
   rawScores: SessionResultDto['scores']['raw'];
   assessmentVersion?: AssessmentVersion;
   responses?: Response[];
 }): SessionResultDto['qualityIndicators'] => {
   const missingDimensions = discDimensions.filter((dimension) => input.rawScores[dimension] <= 0);
+  const mirrorConsistencyEvent = input.result.auditTrail.find(
+    (event) => event.type === 'mirror_consistency_evaluated',
+  );
+  const mirrorConsistencyPayload =
+    mirrorConsistencyEvent &&
+    typeof mirrorConsistencyEvent.payload === 'object' &&
+    mirrorConsistencyEvent.payload
+      ? (mirrorConsistencyEvent.payload as {
+          mirrorPairs?: number;
+          mirrorContradictions?: number;
+          contradictionRate?: number;
+        })
+      : undefined;
+  const mirrorPairs = mirrorConsistencyPayload?.mirrorPairs ?? 0;
+  const mirrorContradictions = mirrorConsistencyPayload?.mirrorContradictions ?? 0;
+  const mirrorContradictionRate = mirrorConsistencyPayload?.contradictionRate ?? 0;
+  const mirrorInconsistency = mirrorContradictions > 0;
 
   if (
     input.scoringVersion !== 'disc-v1-likert-16' ||
@@ -212,12 +237,16 @@ const buildQualityIndicators = (input: {
         flatResponse: false,
         extremeResponse: false,
         missingDimensionContribution: missingDimensions.length > 0,
+        mirrorInconsistency,
       },
       metrics: {
         flatResponseRate: 0,
         highExtremeRate: 0,
         lowExtremeRate: 0,
         missingDimensions,
+        mirrorContradictionRate,
+        mirrorContradictions,
+        mirrorPairs,
       },
     };
   }
@@ -228,17 +257,28 @@ const buildQualityIndicators = (input: {
   });
 
   const responseCount = selectedOptionOrders.length;
-  const optionCount = Math.max(...input.assessmentVersion.questions.map((question) => question.options.length), 0);
+  const optionCount = Math.max(
+    ...input.assessmentVersion.questions.map((question) => question.options.length),
+    0,
+  );
   const lowOrder = optionCount > 0 ? 1 : 0;
   const highOrder = optionCount;
 
   const highExtremeRate =
     responseCount > 0
-      ? Number((selectedOptionOrders.filter((order) => order === highOrder).length / responseCount).toFixed(2))
+      ? Number(
+          (
+            selectedOptionOrders.filter((order) => order === highOrder).length / responseCount
+          ).toFixed(2),
+        )
       : 0;
   const lowExtremeRate =
     responseCount > 0
-      ? Number((selectedOptionOrders.filter((order) => order === lowOrder).length / responseCount).toFixed(2))
+      ? Number(
+          (
+            selectedOptionOrders.filter((order) => order === lowOrder).length / responseCount
+          ).toFixed(2),
+        )
       : 0;
 
   const countsByOrder = new Map<number, number>();
@@ -246,7 +286,8 @@ const buildQualityIndicators = (input: {
     countsByOrder.set(order, (countsByOrder.get(order) ?? 0) + 1);
   });
   const maxFrequency = responseCount > 0 ? Math.max(...countsByOrder.values()) : 0;
-  const flatResponseRate = responseCount > 0 ? Number((maxFrequency / responseCount).toFixed(2)) : 0;
+  const flatResponseRate =
+    responseCount > 0 ? Number((maxFrequency / responseCount).toFixed(2)) : 0;
 
   const flatResponse = flatResponseRate >= 0.8;
   const extremeResponse = highExtremeRate >= 0.8 || lowExtremeRate >= 0.8;
@@ -258,28 +299,31 @@ const buildQualityIndicators = (input: {
       100 -
         (flatResponse ? 40 : 0) -
         (extremeResponse ? 40 : 0) -
-        (missingDimensionContribution ? 20 : 0),
+        (missingDimensionContribution ? 20 : 0) -
+        (mirrorInconsistency ? 20 : 0),
     ),
     flags: {
       flatResponse,
       extremeResponse,
       missingDimensionContribution,
+      mirrorInconsistency,
     },
     metrics: {
       flatResponseRate,
       highExtremeRate,
       lowExtremeRate,
       missingDimensions,
+      mirrorContradictionRate,
+      mirrorContradictions,
+      mirrorPairs,
     },
   };
 };
 
-const toDiscScores = (
-  input: {
-    result: ProfileResult;
-    assessmentVersion: AssessmentVersion;
-  },
-): Pick<
+const toDiscScores = (input: {
+  result: ProfileResult;
+  assessmentVersion: AssessmentVersion;
+}): Pick<
   SessionResultDto,
   'scores' | 'primaryDimension' | 'secondaryDimension' | 'profileSummary' | 'qualityIndicators'
 > => {
@@ -311,6 +355,7 @@ const toDiscScores = (
     secondaryDimension: ranked[1]?.dimension ?? ranked[0]?.dimension ?? 'I',
     profileSummary: buildProfileSummary(result.scoringVersion, ranked),
     qualityIndicators: buildQualityIndicators({
+      result,
       scoringVersion: result.scoringVersion,
       rawScores: raw,
       assessmentVersion,
@@ -326,21 +371,26 @@ const buildDebugModel = (input: {
 }): SessionScoringDebugDto => {
   const { assessmentVersion, responses, sessionId } = input;
 
-  const questionById = new Map(assessmentVersion.questions.map((question) => [question.id, question] as const));
+  const questionById = new Map(
+    assessmentVersion.questions.map((question) => [question.id, question] as const),
+  );
   const ruleByQuestionOption = new Map(
-    assessmentVersion.scoringRules.map((rule) => [`${rule.questionId}:${rule.optionId}`, rule] as const),
+    assessmentVersion.scoringRules.map(
+      (rule) => [`${rule.questionId}:${rule.optionId}`, rule] as const,
+    ),
   );
 
   const rawByDimension: SessionResultDto['scores']['raw'] = { D: 0, I: 0, S: 0, C: 0 };
 
   const contributions = responses.map((response) => {
     const question = questionById.get(response.questionId);
-    const impactByDimension: SessionScoringDebugDto['contributions'][number]['impactByDimension'] = {
-      D: 0,
-      I: 0,
-      S: 0,
-      C: 0,
-    };
+    const impactByDimension: SessionScoringDebugDto['contributions'][number]['impactByDimension'] =
+      {
+        D: 0,
+        I: 0,
+        S: 0,
+        C: 0,
+      };
 
     const selectedOptionCodes: string[] = [];
 
@@ -390,10 +440,15 @@ const buildDebugModel = (input: {
   };
 
   const ranked = [...discDimensions]
-    .map((dimension) => ({ dimension, score: normalized[dimension], raw: rawByDimension[dimension] }))
+    .map((dimension) => ({
+      dimension,
+      score: normalized[dimension],
+      raw: rawByDimension[dimension],
+    }))
     .sort((a, b) => b.score - a.score || b.raw - a.raw || a.dimension.localeCompare(b.dimension));
 
   const qualityIndicators = buildQualityIndicators({
+    result: calculateProfileResult({ assessmentVersion, responses }),
     scoringVersion: assessmentVersion.scoringVersion,
     rawScores: rawByDimension,
     assessmentVersion,
@@ -497,7 +552,9 @@ export const getSessionResult = async (
     return null;
   }
 
-  const assessmentVersion = await deps.assessmentReadRepository.getVersion(session.assessmentVersionId);
+  const assessmentVersion = await deps.assessmentReadRepository.getVersion(
+    session.assessmentVersionId,
+  );
   if (!assessmentVersion) {
     throw new Error('Assessment version not found');
   }
@@ -593,7 +650,9 @@ export const getSessionScoringDebug = async (
     throw new Error('Session not found');
   }
 
-  const assessmentVersion = await deps.assessmentReadRepository.getVersion(session.assessmentVersionId);
+  const assessmentVersion = await deps.assessmentReadRepository.getVersion(
+    session.assessmentVersionId,
+  );
   if (!assessmentVersion) {
     throw new Error('Assessment version not found');
   }

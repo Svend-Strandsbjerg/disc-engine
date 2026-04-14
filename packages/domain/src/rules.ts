@@ -1,6 +1,7 @@
 import type {
   AssessmentVersion,
   ProfileResult,
+  Question,
   Response,
   ScoreBreakdownItem,
   ScoringRule,
@@ -21,10 +22,7 @@ export const assertVersionEditable = (version: AssessmentVersion): void => {
 };
 
 export interface ScoringEngine {
-  calculate(input: {
-    assessmentVersion: AssessmentVersion;
-    responses: Response[];
-  }): ProfileResult;
+  calculate(input: { assessmentVersion: AssessmentVersion; responses: Response[] }): ProfileResult;
 }
 
 const buildRuleIndex = (rules: ScoringRule[]): Map<string, ScoringRule> => {
@@ -40,7 +38,93 @@ const normalize = (raw: number, denominator: number): number => {
 };
 
 const useTotalShareNormalization = (scoringVersion: string): boolean => {
-  return scoringVersion === 'disc-v1-likert-16';
+  return scoringVersion === 'disc-v1-likert-16' || scoringVersion === 'disc-v2-axes';
+};
+
+type DiscAxis = 'tempo' | 'focus';
+type AxisDirection = 'highTempo' | 'lowTempo' | 'taskFocus' | 'peopleFocus';
+type QuestionRole = 'core' | 'mirror';
+
+interface AxisItemMetadata {
+  axis: DiscAxis;
+  axisDirection: AxisDirection;
+  weight?: number;
+  reverseKeyed?: boolean;
+  role?: QuestionRole;
+  mirrorOf?: string;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const parseAxisMetadata = (question: Question): AxisItemMetadata | null => {
+  if (!isRecord(question.metadata)) return null;
+
+  const axis = question.metadata.axis;
+  const axisDirection = question.metadata.axisDirection;
+
+  if (
+    (axis !== 'tempo' && axis !== 'focus') ||
+    (axisDirection !== 'highTempo' &&
+      axisDirection !== 'lowTempo' &&
+      axisDirection !== 'taskFocus' &&
+      axisDirection !== 'peopleFocus')
+  ) {
+    return null;
+  }
+
+  return {
+    axis,
+    axisDirection,
+    ...(typeof question.metadata.weight === 'number' ? { weight: question.metadata.weight } : {}),
+    ...(typeof question.metadata.reverseKeyed === 'boolean'
+      ? { reverseKeyed: question.metadata.reverseKeyed }
+      : {}),
+    ...(question.metadata.role === 'core' || question.metadata.role === 'mirror'
+      ? { role: question.metadata.role }
+      : {}),
+    ...(typeof question.metadata.mirrorOf === 'string'
+      ? { mirrorOf: question.metadata.mirrorOf }
+      : {}),
+  };
+};
+
+const getOptionIntensity = (question: Question, optionId: string): number | null => {
+  const option = question.options.find((item) => item.id === optionId);
+  if (!option) return null;
+  const intensityFromMetadata =
+    isRecord(option.metadata) && typeof option.metadata.intensity === 'number'
+      ? option.metadata.intensity
+      : null;
+  if (intensityFromMetadata !== null) return intensityFromMetadata;
+  return option.order - 1;
+};
+
+const getQuestionScaleMax = (question: Question): number => {
+  const intensities = question.options
+    .map((option) =>
+      isRecord(option.metadata) && typeof option.metadata.intensity === 'number'
+        ? option.metadata.intensity
+        : option.order - 1,
+    )
+    .filter((value) => Number.isFinite(value));
+  return intensities.length > 0 ? Math.max(...intensities) : 0;
+};
+
+const applyReverseKey = (value: number, scaleMax: number, reverseKeyed: boolean): number => {
+  if (!reverseKeyed) return value;
+  return Math.max(0, scaleMax - value);
+};
+
+const deriveDiscFromAxes = (
+  axisDirectionScores: Record<AxisDirection, number>,
+): Record<'D' | 'I' | 'S' | 'C', number> => {
+  return {
+    D: axisDirectionScores.highTempo + axisDirectionScores.taskFocus,
+    I: axisDirectionScores.highTempo + axisDirectionScores.peopleFocus,
+    S: axisDirectionScores.lowTempo + axisDirectionScores.peopleFocus,
+    C: axisDirectionScores.lowTempo + axisDirectionScores.taskFocus,
+  };
 };
 
 export const calculateProfileResult = (input: {
@@ -55,56 +139,188 @@ export const calculateProfileResult = (input: {
   const evidence = new Map<string, string[]>(
     assessmentVersion.dimensions.map((dimension) => [dimension.key, []]),
   );
-
-  const ruleIndex = buildRuleIndex(assessmentVersion.scoringRules);
   const auditTrail: ProfileResult['auditTrail'] = [];
+  const questionById = new Map(
+    assessmentVersion.questions.map((question) => [question.id, question] as const),
+  );
 
-  // TODO: Add value-based scoring hooks for scale/text question types.
-  responses.forEach((response, responseIndex) => {
-    response.selectedOptionIds.forEach((optionId) => {
-      const rule = ruleIndex.get(`${response.questionId}:${optionId}`);
-      if (!rule) {
+  if (assessmentVersion.scoringVersion === 'disc-v2-axes') {
+    const axisDirectionScores: Record<AxisDirection, number> = {
+      highTempo: 0,
+      lowTempo: 0,
+      taskFocus: 0,
+      peopleFocus: 0,
+    };
+    const axisEvidence: Record<AxisDirection, string[]> = {
+      highTempo: [],
+      lowTempo: [],
+      taskFocus: [],
+      peopleFocus: [],
+    };
+    const alignedValuesByQuestionCode = new Map<
+      string,
+      { alignedValue: number; scaleMax: number }
+    >();
+    let mirrorPairs = 0;
+    let mirrorContradictions = 0;
+
+    responses.forEach((response, responseIndex) => {
+      const question = questionById.get(response.questionId);
+      if (!question) {
+        return;
+      }
+
+      const metadata = parseAxisMetadata(question);
+      if (!metadata) {
         auditTrail.push({
-          id: `${assessmentVersion.id}:missing-rule:${response.id}:${optionId}`,
+          id: `${assessmentVersion.id}:missing-axis-metadata:${response.id}`,
           occurredAt: new Date(assessmentVersion.createdAt),
-          type: 'missing_scoring_rule',
-          payload: { responseId: response.id, questionId: response.questionId, optionId },
+          type: 'missing_axis_metadata',
+          payload: { responseId: response.id, questionId: response.questionId },
         });
         return;
       }
 
-      rule.impacts.forEach((impact) => {
-        const current = dimensionScores.get(impact.dimensionKey) ?? 0;
-        const next = current + impact.weight;
-        dimensionScores.set(impact.dimensionKey, next);
+      const selectedOptionId = response.selectedOptionIds[0];
+      if (!selectedOptionId) return;
 
-        const evidenceList = evidence.get(impact.dimensionKey) ?? [];
-        evidenceList.push(
-          `response:${response.id}|q:${response.questionId}|opt:${optionId}|w:${impact.weight}`,
-        );
-        evidence.set(impact.dimensionKey, evidenceList);
+      const intensity = getOptionIntensity(question, selectedOptionId);
+      if (intensity === null) return;
 
-        auditTrail.push({
-          id: `${assessmentVersion.id}:apply:${responseIndex}:${response.id}:${impact.dimensionKey}`,
-          occurredAt: new Date(assessmentVersion.createdAt),
-          type: 'rule_applied',
-          payload: {
-            responseId: response.id,
-            questionId: response.questionId,
-            optionId,
-            dimensionKey: impact.dimensionKey,
-            weight: impact.weight,
-          },
+      const scaleMax = getQuestionScaleMax(question);
+      const alignedValue = applyReverseKey(intensity, scaleMax, metadata.reverseKeyed ?? false);
+      const weightedContribution = alignedValue * (metadata.weight ?? 1);
+
+      axisDirectionScores[metadata.axisDirection] += weightedContribution;
+      axisEvidence[metadata.axisDirection].push(
+        `response:${response.id}|q:${response.questionId}|opt:${selectedOptionId}|aligned:${alignedValue}|w:${metadata.weight ?? 1}`,
+      );
+
+      if (metadata.role === 'core') {
+        alignedValuesByQuestionCode.set(question.code, { alignedValue, scaleMax });
+      }
+      if (metadata.role === 'mirror' && metadata.mirrorOf) {
+        const mirrored = alignedValuesByQuestionCode.get(metadata.mirrorOf);
+        if (mirrored) {
+          mirrorPairs += 1;
+          const comparisonScaleMax = Math.max(mirrored.scaleMax, scaleMax);
+          const contradictionThreshold = comparisonScaleMax / 2;
+          if (Math.abs(mirrored.alignedValue - alignedValue) > contradictionThreshold) {
+            mirrorContradictions += 1;
+          }
+        }
+      }
+
+      auditTrail.push({
+        id: `${assessmentVersion.id}:axis-apply:${responseIndex}:${response.id}:${metadata.axisDirection}`,
+        occurredAt: new Date(assessmentVersion.createdAt),
+        type: 'axis_item_applied',
+        payload: {
+          responseId: response.id,
+          questionId: response.questionId,
+          optionId: selectedOptionId,
+          axis: metadata.axis,
+          axisDirection: metadata.axisDirection,
+          reverseKeyed: metadata.reverseKeyed ?? false,
+          weight: metadata.weight ?? 1,
+          alignedValue,
+          weightedContribution,
+        },
+      });
+    });
+
+    const derivedDiscScores = deriveDiscFromAxes(axisDirectionScores);
+    Object.entries(derivedDiscScores).forEach(([key, value]) => {
+      dimensionScores.set(key, value);
+      const dimensionEvidence = evidence.get(key) ?? [];
+      if (key === 'D') dimensionEvidence.push(...axisEvidence.highTempo, ...axisEvidence.taskFocus);
+      if (key === 'I')
+        dimensionEvidence.push(...axisEvidence.highTempo, ...axisEvidence.peopleFocus);
+      if (key === 'S')
+        dimensionEvidence.push(...axisEvidence.lowTempo, ...axisEvidence.peopleFocus);
+      if (key === 'C') dimensionEvidence.push(...axisEvidence.lowTempo, ...axisEvidence.taskFocus);
+      evidence.set(key, dimensionEvidence);
+    });
+
+    auditTrail.push({
+      id: `${assessmentVersion.id}:disc-derivation:disc-v2-axes`,
+      occurredAt: new Date(assessmentVersion.createdAt),
+      type: 'disc_derived_from_axes',
+      payload: {
+        mapping: {
+          D: ['highTempo', 'taskFocus'],
+          I: ['highTempo', 'peopleFocus'],
+          S: ['lowTempo', 'peopleFocus'],
+          C: ['lowTempo', 'taskFocus'],
+        },
+        axisDirectionScores,
+        derivedDiscScores,
+      },
+    });
+
+    auditTrail.push({
+      id: `${assessmentVersion.id}:mirror-consistency:disc-v2-axes`,
+      occurredAt: new Date(assessmentVersion.createdAt),
+      type: 'mirror_consistency_evaluated',
+      payload: {
+        mirrorPairs,
+        mirrorContradictions,
+        contradictionRate:
+          mirrorPairs > 0 ? Number((mirrorContradictions / mirrorPairs).toFixed(2)) : 0,
+      },
+    });
+  } else {
+    const ruleIndex = buildRuleIndex(assessmentVersion.scoringRules);
+    // TODO: Add value-based scoring hooks for scale/text question types.
+    responses.forEach((response, responseIndex) => {
+      response.selectedOptionIds.forEach((optionId) => {
+        const rule = ruleIndex.get(`${response.questionId}:${optionId}`);
+        if (!rule) {
+          auditTrail.push({
+            id: `${assessmentVersion.id}:missing-rule:${response.id}:${optionId}`,
+            occurredAt: new Date(assessmentVersion.createdAt),
+            type: 'missing_scoring_rule',
+            payload: { responseId: response.id, questionId: response.questionId, optionId },
+          });
+          return;
+        }
+
+        rule.impacts.forEach((impact) => {
+          const current = dimensionScores.get(impact.dimensionKey) ?? 0;
+          const next = current + impact.weight;
+          dimensionScores.set(impact.dimensionKey, next);
+
+          const evidenceList = evidence.get(impact.dimensionKey) ?? [];
+          evidenceList.push(
+            `response:${response.id}|q:${response.questionId}|opt:${optionId}|w:${impact.weight}`,
+          );
+          evidence.set(impact.dimensionKey, evidenceList);
+
+          auditTrail.push({
+            id: `${assessmentVersion.id}:apply:${responseIndex}:${response.id}:${impact.dimensionKey}`,
+            occurredAt: new Date(assessmentVersion.createdAt),
+            type: 'rule_applied',
+            payload: {
+              responseId: response.id,
+              questionId: response.questionId,
+              optionId,
+              dimensionKey: impact.dimensionKey,
+              weight: impact.weight,
+            },
+          });
         });
       });
     });
-  });
+  }
 
   const rawValues = [...dimensionScores.values()];
   const maxRawScore = rawValues.length > 0 ? Math.max(...rawValues) : 0;
   const totalRawScore = rawValues.reduce((sum, value) => sum + value, 0);
-  const normalizationMode = useTotalShareNormalization(assessmentVersion.scoringVersion) ? 'total_share' : 'max';
-  const normalizationDenominator = normalizationMode === 'total_share' ? totalRawScore : maxRawScore;
+  const normalizationMode = useTotalShareNormalization(assessmentVersion.scoringVersion)
+    ? 'total_share'
+    : 'max';
+  const normalizationDenominator =
+    normalizationMode === 'total_share' ? totalRawScore : maxRawScore;
 
   const scoreBreakdown: ScoreBreakdownItem[] = assessmentVersion.dimensions
     .slice()
@@ -133,7 +349,12 @@ export const calculateProfileResult = (input: {
 
   const highest = scoreBreakdown
     .slice()
-    .sort((a, b) => b.normalizedScore - a.normalizedScore || b.rawScore - a.rawScore || a.dimensionKey.localeCompare(b.dimensionKey))[0];
+    .sort(
+      (a, b) =>
+        b.normalizedScore - a.normalizedScore ||
+        b.rawScore - a.rawScore ||
+        a.dimensionKey.localeCompare(b.dimensionKey),
+    )[0];
 
   const sessionId = responses[0]?.sessionId ?? 'unknown-session';
 
@@ -147,7 +368,9 @@ export const calculateProfileResult = (input: {
       ? `Highest scoring dimension: ${highest.dimensionKey} (${highest.normalizedScore}).`
       : 'No scored responses available.',
     scoreBreakdown,
-    totalScores: Object.fromEntries(scoreBreakdown.map((item) => [item.dimensionKey, item.rawScore])),
+    totalScores: Object.fromEntries(
+      scoreBreakdown.map((item) => [item.dimensionKey, item.rawScore]),
+    ),
     rawResponsesSnapshot: responses,
     calculatedAt: new Date(assessmentVersion.createdAt),
     auditTrail,
