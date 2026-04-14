@@ -69,6 +69,7 @@ model Tenant {
   profileResults            ProfileResult[]
   generatedReports          GeneratedReport[]
   candidateItems            CandidateItem[]
+  candidateItemReviews      CandidateItemReview[]
 }
 
 model ApiKey {
