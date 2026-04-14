@@ -252,6 +252,7 @@ export const calculateProfileResult = (input: {
           const contradictionThreshold = comparisonScaleMax / 2;
           const absoluteDifference = Math.abs(mirrored.alignedValue - alignedValue);
           const contradicted = absoluteDifference > contradictionThreshold;
+          const mirroredResponseId = responseByQuestionCode.get(metadata.mirrorOf)?.responseId;
           if (contradicted) {
             mirrorContradictions += 1;
           }
@@ -259,7 +260,7 @@ export const calculateProfileResult = (input: {
             mirrorQuestionCode: question.code,
             mirroredQuestionCode: metadata.mirrorOf,
             mirrorResponseId: response.id,
-            mirroredResponseId: responseByQuestionCode.get(metadata.mirrorOf)?.responseId,
+            ...(mirroredResponseId !== undefined ? { mirroredResponseId } : {}),
             mirrorAlignedValue: alignedValue,
             mirroredAlignedValue: mirrored.alignedValue,
             comparisonScaleMax,
