@@ -62,6 +62,9 @@ export const registerSessionRoutes = (app: FastifyInstance) => {
       if (error instanceof Error && error.message === 'Session assessment version not found') {
         return reply.code(409).send({ message: 'Session assessment version not found' });
       }
+      if (error instanceof Error && error.message === 'Session assessment questions not found') {
+        return reply.code(409).send({ message: 'Session assessment questions not found' });
+      }
 
       throw error;
     }

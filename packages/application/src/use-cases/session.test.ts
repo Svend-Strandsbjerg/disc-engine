@@ -81,6 +81,7 @@ test('getSessionQuestions returns ordered render-ready question payload for the 
       {
         id: '00000000-0000-0000-0000-000000000200',
         prompt: 'First question',
+        text: 'First question',
         order: 1,
         responseType: 'single_choice',
         options: [
@@ -99,6 +100,7 @@ test('getSessionQuestions returns ordered render-ready question payload for the 
       {
         id: '00000000-0000-0000-0000-000000000201',
         prompt: 'Second question',
+        text: 'Second question',
         order: 2,
         responseType: 'text',
       },
@@ -135,5 +137,25 @@ test('getSessionQuestions throws when the session version reference cannot be re
   await assert.rejects(
     () => getSessionQuestions(deps, '00000000-0000-0000-0000-000000000001'),
     /Session assessment version not found/,
+  );
+});
+
+test('getSessionQuestions throws when the session version has no questions', async () => {
+  const deps = {
+    assessmentSessionRepository: {
+      getSession: async () => buildSession(),
+    } as AssessmentSessionRepository,
+    assessmentReadRepository: {
+      getVersion: async () => ({
+        ...buildVersion(),
+        questionCount: 0,
+        questions: [],
+      }),
+    } as AssessmentReadRepository,
+  };
+
+  await assert.rejects(
+    () => getSessionQuestions(deps, '00000000-0000-0000-0000-000000000001'),
+    /Session assessment questions not found/,
   );
 });
