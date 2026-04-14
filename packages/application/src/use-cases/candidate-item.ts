@@ -48,7 +48,31 @@ export const createCandidateItem = async (
     throw new Error('Mirror candidate items must reference a paired candidate item');
   }
 
-  return deps.candidateItemRepository.createCandidateItem(parsed);
+  return deps.candidateItemRepository.createCandidateItem({
+    assessmentDefinitionId: parsed.assessmentDefinitionId,
+    prompt: parsed.prompt,
+    axis: parsed.axis,
+    axisDirection: parsed.axisDirection,
+    weight: parsed.weight,
+    reverseKeyed: parsed.reverseKeyed,
+    role: parsed.role,
+    contextApplicability: parsed.contextApplicability,
+    disambiguationTags: parsed.disambiguationTags,
+    aiGenerated: parsed.aiGenerated,
+    ...(parsed.mirrorCandidateItemId !== undefined
+      ? { mirrorCandidateItemId: parsed.mirrorCandidateItemId }
+      : {}),
+    ...(parsed.uncertaintyProfile !== undefined
+      ? { uncertaintyProfile: parsed.uncertaintyProfile }
+      : {}),
+    ...(parsed.aiModel !== undefined ? { aiModel: parsed.aiModel } : {}),
+    ...(parsed.aiPromptVersion !== undefined ? { aiPromptVersion: parsed.aiPromptVersion } : {}),
+    ...(parsed.aiRationale !== undefined ? { aiRationale: parsed.aiRationale } : {}),
+    ...(parsed.aiConfidence !== undefined ? { aiConfidence: parsed.aiConfidence } : {}),
+    ...(parsed.aiSuggestedAlternatives !== undefined
+      ? { aiSuggestedAlternatives: parsed.aiSuggestedAlternatives }
+      : {}),
+  });
 };
 
 export const listCandidateItems = async (
@@ -66,7 +90,23 @@ export const reviewCandidateItem = async (
   deps: { candidateItemRepository: CandidateItemRepository },
   input: z.input<typeof reviewSchema>,
 ) => {
-  return deps.candidateItemRepository.createCandidateItemReview(reviewSchema.parse(input));
+  const parsed = reviewSchema.parse(input);
+
+  return deps.candidateItemRepository.createCandidateItemReview({
+    candidateItemId: parsed.candidateItemId,
+    clarityScore: parsed.clarityScore,
+    ambiguityRisk: parsed.ambiguityRisk,
+    doubleBarreledRisk: parsed.doubleBarreledRisk,
+    socialDesirabilityRisk: parsed.socialDesirabilityRisk,
+    discriminationPotential: parsed.discriminationPotential,
+    mirrorUsefulness: parsed.mirrorUsefulness,
+    overlapRisk: parsed.overlapRisk,
+    status: parsed.status,
+    ...(parsed.reviewerNotes !== undefined ? { reviewerNotes: parsed.reviewerNotes } : {}),
+    ...(parsed.nearDuplicateQuestionIds !== undefined
+      ? { nearDuplicateQuestionIds: parsed.nearDuplicateQuestionIds }
+      : {}),
+  });
 };
 
 export const compareCandidateItemSimilarity = async (
