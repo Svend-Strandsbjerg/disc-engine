@@ -9,9 +9,31 @@ import {
 
 const sessionParamsSchema = z.object({ sessionId: z.string().uuid() });
 
+const toResultLogPayload = (
+  result:
+    | {
+        scores: {
+          raw: { D: number; I: number; S: number; C: number };
+          normalized: { D: number; I: number; S: number; C: number };
+        };
+        primaryDimension: 'D' | 'I' | 'S' | 'C';
+        secondaryDimension: 'D' | 'I' | 'S' | 'C';
+        lifecycleStatus: string;
+      }
+    | undefined,
+) => ({
+  rawScores: result?.scores.raw ?? null,
+  normalizedScores: result?.scores.normalized ?? null,
+  primaryDimension: result?.primaryDimension ?? null,
+  secondaryDimension: result?.secondaryDimension ?? null,
+  lifecycleStatus: result?.lifecycleStatus ?? null,
+});
+
 export const registerResultRoutes = (app: FastifyInstance) => {
   app.get('/sessions/:sessionId/result', async (request, reply) => {
     const params = sessionParamsSchema.parse(request.params);
+
+    app.log.info({ sessionId: params.sessionId }, 'session result fetch requested');
 
     try {
       const result = await getSessionResult(
@@ -21,6 +43,15 @@ export const registerResultRoutes = (app: FastifyInstance) => {
           resultRepository: app.repositories.resultRepository,
         },
         params.sessionId,
+      );
+
+      app.log.info(
+        {
+          sessionId: params.sessionId,
+          resultExists: Boolean(result),
+          ...toResultLogPayload(result ?? undefined),
+        },
+        'session result fetch completed',
       );
 
       if (!result) {
@@ -59,7 +90,18 @@ export const registerResultRoutes = (app: FastifyInstance) => {
   app.post('/sessions/:sessionId/complete', async (request, reply) => {
     const params = sessionParamsSchema.parse(request.params);
 
+    app.log.info({ sessionId: params.sessionId }, 'session completion requested');
+
     try {
+      const existingResult = await getSessionResult(
+        {
+          assessmentReadRepository: app.repositories.assessmentReadRepository,
+          assessmentSessionRepository: app.repositories.assessmentSessionRepository,
+          resultRepository: app.repositories.resultRepository,
+        },
+        params.sessionId,
+      );
+
       const completion = await completeSession(
         {
           assessmentReadRepository: app.repositories.assessmentReadRepository,
@@ -68,6 +110,16 @@ export const registerResultRoutes = (app: FastifyInstance) => {
           resultRepository: app.repositories.resultRepository,
         },
         params.sessionId,
+      );
+
+      app.log.info(
+        {
+          sessionId: params.sessionId,
+          resultExisted: Boolean(existingResult),
+          calculationRan: !existingResult,
+          ...toResultLogPayload(completion.result),
+        },
+        'session completion finished',
       );
 
       return reply.send(completion);
