@@ -106,6 +106,7 @@ model AssessmentDefinition {
   versions AssessmentVersion[]
   sessions AssessmentSession[]
   candidateItems CandidateItem[]
+  candidateItemGenerationBatches CandidateItemGenerationBatch[]
 
   @@unique([tenantId, key])
 }
