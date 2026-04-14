@@ -83,17 +83,20 @@ test('getSessionQuestions returns ordered render-ready question payload for the 
         prompt: 'First question',
         text: 'First question',
         order: 1,
+        index: 1,
         responseType: 'single_choice',
         options: [
           {
             id: '00000000-0000-0000-0000-000000000301',
             label: 'Option A',
             order: 1,
+            index: 1,
           },
           {
             id: '00000000-0000-0000-0000-000000000302',
             label: 'Option B',
             order: 2,
+            index: 2,
           },
         ],
       },
@@ -102,6 +105,7 @@ test('getSessionQuestions returns ordered render-ready question payload for the 
         prompt: 'Second question',
         text: 'Second question',
         order: 2,
+        index: 2,
         responseType: 'text',
       },
     ],

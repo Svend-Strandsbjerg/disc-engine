@@ -69,6 +69,7 @@ export interface SessionQuestionOptionDto {
   id: UUID;
   label: string;
   order: number;
+  index: number;
 }
 
 export interface SessionQuestionDto {
@@ -76,6 +77,7 @@ export interface SessionQuestionDto {
   prompt: string;
   text: string;
   order: number;
+  index: number;
   responseType: QuestionType;
   options?: SessionQuestionOptionDto[];
 }
@@ -117,6 +119,7 @@ export const getSessionQuestions = async (
       prompt: question.prompt,
       text: question.prompt,
       order: question.order,
+      index: question.order,
       responseType: question.type,
       ...(question.options.length > 0
         ? {
@@ -124,6 +127,7 @@ export const getSessionQuestions = async (
               id: option.id,
               label: option.label,
               order: option.order,
+              index: option.order,
             })),
           }
         : {}),

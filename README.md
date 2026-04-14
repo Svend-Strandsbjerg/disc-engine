@@ -277,11 +277,39 @@ Limitations (v1):
 
 - `POST /sessions`
 - `GET /sessions/:sessionId`
+- `GET /sessions/:sessionId/questions`
 - `POST /responses`
 - `POST /sessions/:sessionId/complete`
 - `POST /sessions/:sessionId/calculate-result`
 - `POST /sessions/:id/generate-report`
 - `GET /reports/:id`
+
+`GET /sessions/:sessionId/questions` returns the frontend-ready question payload:
+
+```json
+{
+  "sessionId": "uuid",
+  "assessmentVersionId": "uuid",
+  "questions": [
+    {
+      "id": "uuid",
+      "prompt": "Question text",
+      "text": "Question text",
+      "order": 1,
+      "index": 1,
+      "responseType": "single_choice",
+      "options": [
+        {
+          "id": "uuid",
+          "label": "Option label",
+          "order": 1,
+          "index": 1
+        }
+      ]
+    }
+  ]
+}
+```
 
 
 ## Railway first deploy (no migrations yet)
