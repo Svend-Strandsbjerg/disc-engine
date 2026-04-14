@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { submitResponses } from '@disc-foundation/application';
+import { SubmitResponsesValidationError, submitResponses } from '@disc-foundation/application';
 
 const submitResponsesSchema = z
   .object({
@@ -28,16 +28,68 @@ const submitResponsesSchema = z
 
 export const registerResponseRoutes = (app: FastifyInstance) => {
   app.post('/responses', async (request, reply) => {
-    const body = submitResponsesSchema.parse(request.body);
+    const parseResult = submitResponsesSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      const maybeBody = request.body as Partial<{
+        sessionId: string;
+        responses: Array<{
+          questionId: string;
+          selectedOptionIds: string[];
+        }>;
+      }>;
+      const firstResponse = maybeBody.responses?.[0];
+      app.log.error(
+        {
+          sessionId: maybeBody.sessionId,
+          questionId: firstResponse?.questionId,
+          selectedOptionIds: firstResponse?.selectedOptionIds,
+          questionExists: null,
+          optionIdsExistForQuestion: null,
+          issues: parseResult.error.issues,
+        },
+        'submitResponses request body parsing failed',
+      );
+      return reply.code(400).send({
+        message: 'Invalid request body',
+        issues: parseResult.error.issues.map((issue) => ({
+          path: issue.path,
+          message: issue.message,
+        })),
+      });
+    }
 
-    const result = await submitResponses(
-      {
-        assessmentSessionRepository: app.repositories.assessmentSessionRepository,
-        responseRepository: app.repositories.responseRepository,
-      },
-      body,
-    );
+    const body = parseResult.data;
 
-    return reply.code(202).send(result);
+    try {
+      const result = await submitResponses(
+        {
+          assessmentReadRepository: app.repositories.assessmentReadRepository,
+          assessmentSessionRepository: app.repositories.assessmentSessionRepository,
+          responseRepository: app.repositories.responseRepository,
+          logger: app.log,
+        },
+        body,
+      );
+
+      return reply.code(202).send(result);
+    } catch (error) {
+      if (error instanceof SubmitResponsesValidationError) {
+        const firstResponse = body.responses[0];
+        app.log.error(
+          {
+            sessionId: body.sessionId,
+            questionId: firstResponse?.questionId,
+            selectedOptionIds: firstResponse?.selectedOptionIds,
+            questionExists: null,
+            optionIdsExistForQuestion: null,
+            error: error.message,
+          },
+          'submitResponses validation failed',
+        );
+        return reply.code(error.statusCode).send({ message: error.message });
+      }
+
+      throw error;
+    }
   });
 };
