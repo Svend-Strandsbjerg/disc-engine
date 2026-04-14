@@ -62,14 +62,32 @@ const buildSession = (): AssessmentSession => ({
   startedAt: new Date('2026-01-03T00:00:00.000Z'),
 });
 
+const createAssessmentSessionRepositoryMock = (
+  overrides: Partial<AssessmentSessionRepository> = {},
+): AssessmentSessionRepository => ({
+  createSession: async () => buildSession(),
+  getSession: async () => buildSession(),
+  completeSession: async () => undefined,
+  getSessionSummary: async () => null,
+  ...overrides,
+});
+
+const createAssessmentReadRepositoryMock = (
+  overrides: Partial<AssessmentReadRepository> = {},
+): AssessmentReadRepository => ({
+  getVersion: async () => buildVersion(),
+  getActivePublishedVersion: async () => buildVersion(),
+  ...overrides,
+});
+
 test('getSessionQuestions returns ordered render-ready question payload for the session version', async () => {
   const deps = {
-    assessmentSessionRepository: {
+    assessmentSessionRepository: createAssessmentSessionRepositoryMock({
       getSession: async () => buildSession(),
-    } as AssessmentSessionRepository,
-    assessmentReadRepository: {
+    }),
+    assessmentReadRepository: createAssessmentReadRepositoryMock({
       getVersion: async () => buildVersion(),
-    } as AssessmentReadRepository,
+    }),
   };
 
   const result = await getSessionQuestions(deps, '00000000-0000-0000-0000-000000000001');
@@ -114,12 +132,12 @@ test('getSessionQuestions returns ordered render-ready question payload for the 
 
 test('getSessionQuestions throws when the session cannot be found', async () => {
   const deps = {
-    assessmentSessionRepository: {
+    assessmentSessionRepository: createAssessmentSessionRepositoryMock({
       getSession: async () => null,
-    } as AssessmentSessionRepository,
-    assessmentReadRepository: {
+    }),
+    assessmentReadRepository: createAssessmentReadRepositoryMock({
       getVersion: async () => buildVersion(),
-    } as AssessmentReadRepository,
+    }),
   };
 
   await assert.rejects(
@@ -130,12 +148,12 @@ test('getSessionQuestions throws when the session cannot be found', async () => 
 
 test('getSessionQuestions throws when the session version reference cannot be resolved', async () => {
   const deps = {
-    assessmentSessionRepository: {
+    assessmentSessionRepository: createAssessmentSessionRepositoryMock({
       getSession: async () => buildSession(),
-    } as AssessmentSessionRepository,
-    assessmentReadRepository: {
+    }),
+    assessmentReadRepository: createAssessmentReadRepositoryMock({
       getVersion: async () => null,
-    } as AssessmentReadRepository,
+    }),
   };
 
   await assert.rejects(
@@ -146,16 +164,16 @@ test('getSessionQuestions throws when the session version reference cannot be re
 
 test('getSessionQuestions throws when the session version has no questions', async () => {
   const deps = {
-    assessmentSessionRepository: {
+    assessmentSessionRepository: createAssessmentSessionRepositoryMock({
       getSession: async () => buildSession(),
-    } as AssessmentSessionRepository,
-    assessmentReadRepository: {
+    }),
+    assessmentReadRepository: createAssessmentReadRepositoryMock({
       getVersion: async () => ({
         ...buildVersion(),
         questionCount: 0,
         questions: [],
       }),
-    } as AssessmentReadRepository,
+    }),
   };
 
   await assert.rejects(
