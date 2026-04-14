@@ -95,12 +95,13 @@ const parseItemMetadata = (
 };
 
 const getTopDimension = (scoreBreakdown: Array<{ dimensionKey: string; normalizedScore: number }>): TopDimension => {
-  if (scoreBreakdown.length === 0) {
+  const [firstEntry, ...remainingEntries] = scoreBreakdown;
+  if (!firstEntry) {
     return 'unknown';
   }
 
-  let top = scoreBreakdown[0];
-  for (const entry of scoreBreakdown.slice(1)) {
+  let top = firstEntry;
+  for (const entry of remainingEntries) {
     if (entry.normalizedScore > top.normalizedScore) {
       top = entry;
     }
