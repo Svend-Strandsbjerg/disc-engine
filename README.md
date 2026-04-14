@@ -168,6 +168,64 @@ How it works (v1):
 - a minimal structured `profileSummary` for client reuse (`profileCode`, ordered dimensions, compact shape flags)
 - lightweight `qualityIndicators` (`flatResponse`, `extremeResponse`, `missingDimensionContribution`, plus compact metrics/score)
 
+Canonical completed-session payload example (captured from a completed runtime session in the DISC v1 flow):
+
+```json
+{
+  "sessionId": "7d22f5f8-9e3f-4e7b-b063-4d2f66f0e99f",
+  "assessmentVersionId": "33333333-3333-4333-8333-333333333333",
+  "scoringVersion": "disc-v1-likert-16",
+  "completedAt": "2026-04-14T12:03:51.642Z",
+  "lifecycleStatus": "completed",
+  "scores": {
+    "raw": {
+      "D": 13,
+      "I": 10,
+      "S": 11,
+      "C": 5
+    },
+    "normalized": {
+      "D": 33.33,
+      "I": 25.64,
+      "S": 28.21,
+      "C": 12.82
+    }
+  },
+  "primaryDimension": "D",
+  "secondaryDimension": "S",
+  "profileSummary": {
+    "version": "disc-v1-likert-16",
+    "profileCode": "DS",
+    "dimensionOrder": ["D", "S", "I", "C"],
+    "flags": {
+      "balanced": false,
+      "dominant": false,
+      "topTie": false
+    }
+  },
+  "qualityIndicators": {
+    "version": "disc-v1-likert-16",
+    "score": 100,
+    "flags": {
+      "flatResponse": false,
+      "extremeResponse": false,
+      "missingDimensionContribution": false
+    },
+    "metrics": {
+      "flatResponseRate": 0.44,
+      "highExtremeRate": 0.06,
+      "lowExtremeRate": 0,
+      "missingDimensions": []
+    }
+  }
+}
+```
+
+Shape notes for frontend mapping:
+- what many clients call `dimensions` is represented as `scores.raw`
+- what many clients call `normalizedDimensions` is represented as `scores.normalized`
+- `primaryDimension`, `secondaryDimension`, `profileSummary`, `qualityIndicators`, and `lifecycleStatus` are top-level fields on the result DTO
+
 For `disc-v1-likert-16`, these are computed from normalized score spread/ties and response-pattern checks.
 
 
