@@ -9,6 +9,7 @@ import {
   getActiveAssessmentVersion,
   getAssessmentVersionById,
   getPilotItemBankAnalysis,
+  importCandidateItemGenerationBatch,
   publishAssessmentVersion,
   promoteCandidateItemsToDraftVersion,
   reviewCandidateItem,
@@ -87,6 +88,39 @@ const candidateSimilarityBodySchema = z.object({
 
 const promoteCandidatesBodySchema = z.object({
   candidateItemIds: z.array(z.string().uuid()).min(1),
+});
+
+const importGenerationBatchSchema = z.object({
+  generationId: z.string().min(1),
+  sourceType: z.enum(['ai_assistant', 'human_seeded', 'bulk_import', 'other']),
+  modelName: z.string().min(1),
+  promptVersion: z.string().min(1),
+  targetAssessmentDefinitionId: z.string().uuid(),
+  context: z.enum(['work', 'private', 'generic']).optional(),
+  rationaleNotes: z.string().optional(),
+  items: z
+    .array(
+      z.object({
+        prompt: z.string().min(5),
+        axis: z.enum(['tempo', 'focus']),
+        axisDirection: z.enum(['highTempo', 'lowTempo', 'taskFocus', 'peopleFocus']),
+        weight: z.number().positive().max(5),
+        reverseKeyed: z.boolean().default(false),
+        role: z.enum(['core', 'mirror', 'tiebreaker']),
+        mirrorReferenceKey: z.string().optional(),
+        contextApplicability: z.array(z.enum(['work', 'private', 'generic'])).min(1),
+        disambiguationTags: z.array(z.string()).optional(),
+        uncertaintyProfile: z.string().optional(),
+        aiGenerated: z.boolean().default(true),
+        aiModel: z.string().min(1),
+        aiPromptVersion: z.string().min(1),
+        aiRationale: z.string().optional(),
+        aiConfidence: z.number().min(0).max(1).optional(),
+        aiSuggestedAlternatives: z.array(z.string()).optional(),
+      }),
+    )
+    .min(1)
+    .max(200),
 });
 
 export const registerManagementRoutes = (app: FastifyInstance) => {
@@ -261,6 +295,23 @@ export const registerManagementRoutes = (app: FastifyInstance) => {
       { assessmentVersionId: params.id, candidateItemIds: body.candidateItemIds },
     );
     return reply.send({ promoted });
+  });
+
+  app.post('/internal/candidate-item-generation-batches/import', async (request, reply) => {
+    const body = importGenerationBatchSchema.parse(request.body);
+    const result = await importCandidateItemGenerationBatch(
+      { candidateItemRepository: app.repositories.candidateItemRepository },
+      {
+        ...body,
+        items: body.items.map((item) => ({
+          ...item,
+          disambiguationTags: item.disambiguationTags ?? [],
+          aiSuggestedAlternatives: item.aiSuggestedAlternatives ?? [],
+        })),
+      },
+    );
+
+    return reply.code(201).send(result);
   });
 
   app.get('/versions/:id', async (request, reply) => {

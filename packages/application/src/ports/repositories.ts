@@ -3,6 +3,7 @@ import type {
   AssessmentSession,
   AssessmentVersion,
   CandidateItem,
+  CandidateItemGenerationBatch,
   CandidateItemReview,
   CandidateItemSimilarityMatch,
   CandidateItemStatus,
@@ -125,7 +126,23 @@ export interface CandidateItemRepository {
     aiRationale?: string;
     aiConfidence?: number;
     aiSuggestedAlternatives?: string[];
+    generationBatchId?: UUID;
+    intakeMetadata?: Record<string, unknown>;
   }): Promise<CandidateItem>;
+  createGenerationBatch(input: {
+    generationId: string;
+    sourceType: CandidateItemGenerationBatch['sourceType'];
+    modelName: string;
+    promptVersion: string;
+    targetAssessmentDefinitionId: UUID;
+    context?: ContextApplicability;
+    rationaleNotes?: string;
+    normalizationVersion: string;
+  }): Promise<CandidateItemGenerationBatch>;
+  getDuplicateScreeningCorpus(input: { assessmentDefinitionId: UUID }): Promise<{
+    candidateItems: Array<{ id: UUID; prompt: string }>;
+    promotedQuestions: Array<{ id: UUID; prompt: string }>;
+  }>;
   listCandidateItems(input: {
     assessmentDefinitionId: UUID;
     status?: CandidateItemStatus;
