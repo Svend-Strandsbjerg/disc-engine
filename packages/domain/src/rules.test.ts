@@ -281,3 +281,216 @@ test('disc-v2-axes derives D/I/S/C from axis scores with reverse and mirror cons
     contradictionRate: 1,
   });
 });
+
+test('disc-v3-item-bank captures item-level measurement analysis for pilot calibration', () => {
+  const itemBankVersion: AssessmentVersion = {
+    ...assessmentVersion,
+    scoringVersion: 'disc-v3-item-bank',
+    dimensions: [
+      { id: 'dim-d', key: 'D', label: 'Dominance', order: 1 },
+      { id: 'dim-i', key: 'I', label: 'Influence', order: 2 },
+      { id: 'dim-s', key: 'S', label: 'Steadiness', order: 3 },
+      { id: 'dim-c', key: 'C', label: 'Conscientiousness', order: 4 },
+    ],
+    questions: [
+      {
+        id: 'q1',
+        assessmentVersionId: 'version-1',
+        code: 'Q1',
+        prompt: 'Q1',
+        type: 'single_choice',
+        order: 1,
+        required: true,
+        metadata: {
+          axis: 'tempo',
+          axisDirection: 'highTempo',
+          weight: 2,
+          reverseKeyed: false,
+          role: 'core',
+          contextApplicability: ['leadership'],
+        },
+        options: [
+          {
+            id: 'q1o1',
+            questionId: 'q1',
+            code: 'sd',
+            label: 'sd',
+            order: 1,
+            metadata: { intensity: 0 },
+          },
+          {
+            id: 'q1o2',
+            questionId: 'q1',
+            code: 'sa',
+            label: 'sa',
+            order: 5,
+            metadata: { intensity: 4 },
+          },
+        ],
+      },
+      {
+        id: 'q2',
+        assessmentVersionId: 'version-1',
+        code: 'Q2',
+        prompt: 'Q2',
+        type: 'single_choice',
+        order: 2,
+        required: true,
+        metadata: {
+          axis: 'tempo',
+          axisDirection: 'highTempo',
+          weight: 1,
+          reverseKeyed: true,
+          role: 'mirror',
+          mirrorOf: 'Q1',
+        },
+        options: [
+          {
+            id: 'q2o1',
+            questionId: 'q2',
+            code: 'sd',
+            label: 'sd',
+            order: 1,
+            metadata: { intensity: 0 },
+          },
+          {
+            id: 'q2o2',
+            questionId: 'q2',
+            code: 'sa',
+            label: 'sa',
+            order: 5,
+            metadata: { intensity: 4 },
+          },
+        ],
+      },
+      {
+        id: 'q3',
+        assessmentVersionId: 'version-1',
+        code: 'Q3',
+        prompt: 'Q3',
+        type: 'single_choice',
+        order: 3,
+        required: true,
+        metadata: {
+          axis: 'focus',
+          axisDirection: 'taskFocus',
+          weight: 0.5,
+          reverseKeyed: false,
+          role: 'tiebreaker',
+        },
+        options: [
+          {
+            id: 'q3o1',
+            questionId: 'q3',
+            code: 'sd',
+            label: 'sd',
+            order: 1,
+            metadata: { intensity: 0 },
+          },
+          {
+            id: 'q3o2',
+            questionId: 'q3',
+            code: 'sa',
+            label: 'sa',
+            order: 5,
+            metadata: { intensity: 4 },
+          },
+        ],
+      },
+    ],
+  };
+
+  const axisResponses: Response[] = [
+    {
+      id: 'response-1',
+      sessionId: 'session-1',
+      questionId: 'q1',
+      selectedOptionIds: ['q1o2'],
+      value: null,
+      createdAt: new Date('2026-01-02T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+    },
+    {
+      id: 'response-2',
+      sessionId: 'session-1',
+      questionId: 'q2',
+      selectedOptionIds: ['q2o2'],
+      value: null,
+      createdAt: new Date('2026-01-02T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+    },
+    {
+      id: 'response-3',
+      sessionId: 'session-1',
+      questionId: 'q3',
+      selectedOptionIds: ['q3o2'],
+      value: null,
+      createdAt: new Date('2026-01-02T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+    },
+  ];
+
+  const result = calculateProfileResult({
+    responses: axisResponses,
+    assessmentVersion: itemBankVersion,
+  });
+
+  assert.deepEqual(result.totalScores, { D: 10, I: 8, S: 0, C: 2 });
+  assert.equal(result.measurementAnalysis?.version, 'disc-v3-item-bank');
+  assert.equal(result.measurementAnalysis?.itemContributions.length, 3);
+  assert.equal(result.measurementAnalysis?.itemContributions[2]?.role, 'tiebreaker');
+  assert.deepEqual(result.measurementAnalysis?.itemContributions[0]?.contextApplicability, [
+    'leadership',
+  ]);
+  assert.deepEqual(result.measurementAnalysis?.mirrorConsistency, {
+    mirrorPairs: 1,
+    mirrorContradictions: 1,
+    contradictionRate: 1,
+    checks: [
+      {
+        mirrorQuestionCode: 'Q2',
+        mirroredQuestionCode: 'Q1',
+        mirrorResponseId: 'response-2',
+        mirroredResponseId: 'response-1',
+        mirrorAlignedValue: 0,
+        mirroredAlignedValue: 4,
+        comparisonScaleMax: 4,
+        contradictionThreshold: 2,
+        absoluteDifference: 4,
+        contradicted: true,
+      },
+    ],
+  });
+  assert.deepEqual(result.measurementAnalysis?.responseDistributions, [
+    {
+      questionId: 'q1',
+      questionCode: 'Q1',
+      axisDirection: 'highTempo',
+      role: 'core',
+      responseCount: 1,
+      optionSelections: { sa: 1 },
+    },
+    {
+      questionId: 'q2',
+      questionCode: 'Q2',
+      axisDirection: 'highTempo',
+      role: 'mirror',
+      responseCount: 1,
+      optionSelections: { sa: 1 },
+    },
+    {
+      questionId: 'q3',
+      questionCode: 'Q3',
+      axisDirection: 'taskFocus',
+      role: 'tiebreaker',
+      responseCount: 1,
+      optionSelections: { sa: 1 },
+    },
+  ]);
+  assert.deepEqual(result.measurementAnalysis?.diagnostics, {
+    missingMetadataQuestionIds: [],
+    mirrorOrphans: [],
+    zeroWeightQuestionIds: [],
+    negativeWeightQuestionIds: [],
+  });
+});

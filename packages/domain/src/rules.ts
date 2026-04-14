@@ -1,5 +1,12 @@
 import type {
   AssessmentVersion,
+  AxisDirection,
+  DiscAxis,
+  ItemDiagnostics,
+  ItemResponseDistribution,
+  ItemRole,
+  MeasurementAnalysisSnapshot,
+  MirrorConsistencyCheck,
   ProfileResult,
   Question,
   Response,
@@ -38,20 +45,21 @@ const normalize = (raw: number, denominator: number): number => {
 };
 
 const useTotalShareNormalization = (scoringVersion: string): boolean => {
-  return scoringVersion === 'disc-v1-likert-16' || scoringVersion === 'disc-v2-axes';
+  return (
+    scoringVersion === 'disc-v1-likert-16' ||
+    scoringVersion === 'disc-v2-axes' ||
+    scoringVersion === 'disc-v3-item-bank'
+  );
 };
-
-type DiscAxis = 'tempo' | 'focus';
-type AxisDirection = 'highTempo' | 'lowTempo' | 'taskFocus' | 'peopleFocus';
-type QuestionRole = 'core' | 'mirror';
 
 interface AxisItemMetadata {
   axis: DiscAxis;
   axisDirection: AxisDirection;
   weight?: number;
   reverseKeyed?: boolean;
-  role?: QuestionRole;
+  role?: ItemRole;
   mirrorOf?: string;
+  contextApplicability?: string[];
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -80,11 +88,17 @@ const parseAxisMetadata = (question: Question): AxisItemMetadata | null => {
     ...(typeof question.metadata.reverseKeyed === 'boolean'
       ? { reverseKeyed: question.metadata.reverseKeyed }
       : {}),
-    ...(question.metadata.role === 'core' || question.metadata.role === 'mirror'
+    ...(question.metadata.role === 'core' ||
+    question.metadata.role === 'mirror' ||
+    question.metadata.role === 'tiebreaker'
       ? { role: question.metadata.role }
       : {}),
     ...(typeof question.metadata.mirrorOf === 'string'
       ? { mirrorOf: question.metadata.mirrorOf }
+      : {}),
+    ...(Array.isArray(question.metadata.contextApplicability) &&
+    question.metadata.contextApplicability.every((value) => typeof value === 'string')
+      ? { contextApplicability: question.metadata.contextApplicability as string[] }
       : {}),
   };
 };
@@ -144,7 +158,13 @@ export const calculateProfileResult = (input: {
     assessmentVersion.questions.map((question) => [question.id, question] as const),
   );
 
-  if (assessmentVersion.scoringVersion === 'disc-v2-axes') {
+  let measurementAnalysis: MeasurementAnalysisSnapshot | undefined;
+
+  if (
+    assessmentVersion.scoringVersion === 'disc-v2-axes' ||
+    assessmentVersion.scoringVersion === 'disc-v3-item-bank'
+  ) {
+    const captureMeasurementAnalysis = assessmentVersion.scoringVersion === 'disc-v3-item-bank';
     const axisDirectionScores: Record<AxisDirection, number> = {
       highTempo: 0,
       lowTempo: 0,
@@ -157,10 +177,27 @@ export const calculateProfileResult = (input: {
       taskFocus: [],
       peopleFocus: [],
     };
-    const alignedValuesByQuestionCode = new Map<
+    const alignedValuesByQuestionCode = new Map<string, { alignedValue: number; scaleMax: number }>();
+    const responseByQuestionCode = new Map<string, { responseId: string }>();
+    const itemContributions: NonNullable<MeasurementAnalysisSnapshot['itemContributions']> = [];
+    const mirrorChecks: MirrorConsistencyCheck[] = [];
+    const itemDistributionStats = new Map<
       string,
-      { alignedValue: number; scaleMax: number }
+      {
+        questionId: string;
+        questionCode: string;
+        axisDirection: AxisDirection;
+        role: ItemRole;
+        responseCount: number;
+        optionSelections: Record<string, number>;
+      }
     >();
+    const diagnostics: ItemDiagnostics = {
+      missingMetadataQuestionIds: [],
+      mirrorOrphans: [],
+      zeroWeightQuestionIds: [],
+      negativeWeightQuestionIds: [],
+    };
     let mirrorPairs = 0;
     let mirrorContradictions = 0;
 
@@ -172,6 +209,7 @@ export const calculateProfileResult = (input: {
 
       const metadata = parseAxisMetadata(question);
       if (!metadata) {
+        diagnostics.missingMetadataQuestionIds.push(response.questionId);
         auditTrail.push({
           id: `${assessmentVersion.id}:missing-axis-metadata:${response.id}`,
           occurredAt: new Date(assessmentVersion.createdAt),
@@ -183,33 +221,99 @@ export const calculateProfileResult = (input: {
 
       const selectedOptionId = response.selectedOptionIds[0];
       if (!selectedOptionId) return;
+      const selectedOption = question.options.find((option) => option.id === selectedOptionId);
+      if (!selectedOption) return;
 
       const intensity = getOptionIntensity(question, selectedOptionId);
       if (intensity === null) return;
 
       const scaleMax = getQuestionScaleMax(question);
       const alignedValue = applyReverseKey(intensity, scaleMax, metadata.reverseKeyed ?? false);
-      const weightedContribution = alignedValue * (metadata.weight ?? 1);
+      const weight = metadata.weight ?? 1;
+      const weightedContribution = alignedValue * weight;
+      if (weight === 0) diagnostics.zeroWeightQuestionIds.push(question.id);
+      if (weight < 0) diagnostics.negativeWeightQuestionIds.push(question.id);
+      const role = metadata.role ?? 'core';
 
       axisDirectionScores[metadata.axisDirection] += weightedContribution;
       axisEvidence[metadata.axisDirection].push(
-        `response:${response.id}|q:${response.questionId}|opt:${selectedOptionId}|aligned:${alignedValue}|w:${metadata.weight ?? 1}`,
+        `response:${response.id}|q:${response.questionId}|opt:${selectedOptionId}|aligned:${alignedValue}|w:${weight}`,
       );
 
-      if (metadata.role === 'core') {
+      if (role === 'core') {
         alignedValuesByQuestionCode.set(question.code, { alignedValue, scaleMax });
+        responseByQuestionCode.set(question.code, { responseId: response.id });
       }
-      if (metadata.role === 'mirror' && metadata.mirrorOf) {
+      if (role === 'mirror' && metadata.mirrorOf) {
         const mirrored = alignedValuesByQuestionCode.get(metadata.mirrorOf);
         if (mirrored) {
           mirrorPairs += 1;
           const comparisonScaleMax = Math.max(mirrored.scaleMax, scaleMax);
           const contradictionThreshold = comparisonScaleMax / 2;
-          if (Math.abs(mirrored.alignedValue - alignedValue) > contradictionThreshold) {
+          const absoluteDifference = Math.abs(mirrored.alignedValue - alignedValue);
+          const contradicted = absoluteDifference > contradictionThreshold;
+          if (contradicted) {
             mirrorContradictions += 1;
           }
+          mirrorChecks.push({
+            mirrorQuestionCode: question.code,
+            mirroredQuestionCode: metadata.mirrorOf,
+            mirrorResponseId: response.id,
+            mirroredResponseId: responseByQuestionCode.get(metadata.mirrorOf)?.responseId,
+            mirrorAlignedValue: alignedValue,
+            mirroredAlignedValue: mirrored.alignedValue,
+            comparisonScaleMax,
+            contradictionThreshold,
+            absoluteDifference,
+            contradicted,
+          });
+        } else {
+          diagnostics.mirrorOrphans.push(`${question.code}->${metadata.mirrorOf}`);
+          mirrorChecks.push({
+            mirrorQuestionCode: question.code,
+            mirroredQuestionCode: metadata.mirrorOf,
+            mirrorResponseId: response.id,
+            mirrorAlignedValue: alignedValue,
+            comparisonScaleMax: scaleMax,
+            contradictionThreshold: scaleMax / 2,
+            contradicted: false,
+          });
         }
       }
+
+      const distributionKey = `${question.id}:${metadata.axisDirection}`;
+      const distribution = itemDistributionStats.get(distributionKey) ?? {
+        questionId: question.id,
+        questionCode: question.code,
+        axisDirection: metadata.axisDirection,
+        role,
+        responseCount: 0,
+        optionSelections: {},
+      };
+      distribution.responseCount += 1;
+      distribution.optionSelections[selectedOption.code] =
+        (distribution.optionSelections[selectedOption.code] ?? 0) + 1;
+      itemDistributionStats.set(distributionKey, distribution);
+
+      itemContributions.push({
+        questionId: question.id,
+        questionCode: question.code,
+        responseId: response.id,
+        axis: metadata.axis,
+        axisDirection: metadata.axisDirection,
+        role,
+        reverseKeyed: metadata.reverseKeyed ?? false,
+        selectedOptionId,
+        selectedOptionCode: selectedOption.code,
+        selectedOptionOrder: selectedOption.order,
+        selectedIntensity: intensity,
+        alignedValue,
+        weight,
+        weightedContribution,
+        ...(metadata.contextApplicability
+          ? { contextApplicability: metadata.contextApplicability }
+          : {}),
+      });
 
       auditTrail.push({
         id: `${assessmentVersion.id}:axis-apply:${responseIndex}:${response.id}:${metadata.axisDirection}`,
@@ -222,7 +326,11 @@ export const calculateProfileResult = (input: {
           axis: metadata.axis,
           axisDirection: metadata.axisDirection,
           reverseKeyed: metadata.reverseKeyed ?? false,
-          weight: metadata.weight ?? 1,
+          weight,
+          role,
+          ...(metadata.contextApplicability
+            ? { contextApplicability: metadata.contextApplicability }
+            : {}),
           alignedValue,
           weightedContribution,
         },
@@ -269,6 +377,38 @@ export const calculateProfileResult = (input: {
           mirrorPairs > 0 ? Number((mirrorContradictions / mirrorPairs).toFixed(2)) : 0,
       },
     });
+
+    if (captureMeasurementAnalysis) {
+      const responseDistributions: ItemResponseDistribution[] = [...itemDistributionStats.values()].sort(
+        (a, b) => a.questionCode.localeCompare(b.questionCode),
+      );
+      measurementAnalysis = {
+        version: 'disc-v3-item-bank',
+        itemContributions,
+        mirrorConsistency: {
+          mirrorPairs,
+          mirrorContradictions,
+          contradictionRate:
+            mirrorPairs > 0 ? Number((mirrorContradictions / mirrorPairs).toFixed(2)) : 0,
+          checks: mirrorChecks,
+        },
+        responseDistributions,
+        diagnostics,
+      };
+
+      auditTrail.push({
+        id: `${assessmentVersion.id}:item-bank-analysis:disc-v3-item-bank`,
+        occurredAt: new Date(assessmentVersion.createdAt),
+        type: 'item_bank_analysis_captured',
+        payload: {
+          itemContributionCount: itemContributions.length,
+          mirrorPairs,
+          mirrorContradictions,
+          distributionItemCount: responseDistributions.length,
+          diagnostics,
+        },
+      });
+    }
   } else {
     const ruleIndex = buildRuleIndex(assessmentVersion.scoringRules);
     // TODO: Add value-based scoring hooks for scale/text question types.
@@ -374,6 +514,7 @@ export const calculateProfileResult = (input: {
     rawResponsesSnapshot: responses,
     calculatedAt: new Date(assessmentVersion.createdAt),
     auditTrail,
+    ...(measurementAnalysis ? { measurementAnalysis } : {}),
   };
 };
 
