@@ -2,6 +2,7 @@ import {
   calculateProfileResult,
   createDefaultScoringEngine,
   type AssessmentVersion,
+  type AxisDirection,
   type ProfileResult,
   type Response,
   type ScoringEngine,
@@ -131,6 +132,69 @@ export interface CompleteSessionDto {
   resultAvailable: boolean;
   completedAt: Date;
   result: SessionResultDto;
+}
+
+export interface CompletedSessionInspectionDto {
+  sessionId: UUID;
+  assessmentVersionId: UUID;
+  scoringVersion: string;
+  profile: {
+    profileCode: string;
+    primaryDimension: 'D' | 'I' | 'S' | 'C';
+    secondaryDimension: 'D' | 'I' | 'S' | 'C';
+    scores: SessionResultDto['scores'];
+  };
+  selectedAnswers: Array<{
+    responseId: UUID;
+    questionId: UUID;
+    questionCode: string;
+    prompt: string;
+    selectedOptionIds: UUID[];
+    selectedOptions: Array<{
+      optionId: UUID;
+      optionCode: string;
+      optionLabel: string;
+      optionOrder: number;
+    }>;
+    itemMetadata?: {
+      axisDirection?: AxisDirection;
+      role?: 'core' | 'mirror' | 'tiebreaker';
+      mirrorOf?: string;
+      weight?: number;
+      reverseKeyed?: boolean;
+    };
+  }>;
+  axisScoring: {
+    axisDirectionScores?: {
+      highTempo: number;
+      lowTempo: number;
+      taskFocus: number;
+      peopleFocus: number;
+    };
+    derivation?: {
+      D: number;
+      I: number;
+      S: number;
+      C: number;
+    };
+  };
+  mirrorConsistency: {
+    mirrorPairs: number;
+    mirrorContradictions: number;
+    contradictionRate: number;
+    checks?: NonNullable<ProfileResult['measurementAnalysis']>['mirrorConsistency']['checks'];
+  };
+  qualityIndicators: SessionResultDto['qualityIndicators'];
+  itemInsights: Array<{
+    questionCode: string;
+    axisDirection: AxisDirection;
+    role: 'core' | 'mirror' | 'tiebreaker';
+    weightedContribution: number;
+    contributionToDimensions: { D: number; I: number; S: number; C: number };
+    responseDistribution?: Record<string, number>;
+    influencedFinalProfile: boolean;
+  }>;
+  explanation: string;
 }
 
 const discDimensions = ['D', 'I', 'S', 'C'] as const;
@@ -521,6 +585,221 @@ const buildDebugModel = (input: {
   };
 };
 
+const axisContributionToDimensions = (
+  axisDirection: AxisDirection,
+  weightedContribution: number,
+): { D: number; I: number; S: number; C: number } => {
+  if (axisDirection === 'highTempo') {
+    return { D: weightedContribution, I: weightedContribution, S: 0, C: 0 };
+  }
+  if (axisDirection === 'lowTempo') {
+    return { D: 0, I: 0, S: weightedContribution, C: weightedContribution };
+  }
+  if (axisDirection === 'taskFocus') {
+    return { D: weightedContribution, I: 0, S: 0, C: weightedContribution };
+  }
+  return { D: 0, I: weightedContribution, S: weightedContribution, C: 0 };
+};
+
+const getOrderedDimensions = (scores: { D: number; I: number; S: number; C: number }) => {
+  return [...discDimensions].sort(
+    (a, b) => scores[b] - scores[a] || a.localeCompare(b),
+  ) as Array<'D' | 'I' | 'S' | 'C'>;
+};
+
+const parseAxisDerivationPayload = (result: ProfileResult): {
+  axisDirectionScores?: {
+    highTempo: number;
+    lowTempo: number;
+    taskFocus: number;
+    peopleFocus: number;
+  };
+  derivedDiscScores?: { D: number; I: number; S: number; C: number };
+} => {
+  const derivationEvent = result.auditTrail.find((event) => event.type === 'disc_derived_from_axes');
+  if (!derivationEvent || typeof derivationEvent.payload !== 'object' || !derivationEvent.payload) {
+    return {};
+  }
+  const payload = derivationEvent.payload as {
+    axisDirectionScores?: {
+      highTempo?: number;
+      lowTempo?: number;
+      taskFocus?: number;
+      peopleFocus?: number;
+    };
+    derivedDiscScores?: {
+      D?: number;
+      I?: number;
+      S?: number;
+      C?: number;
+    };
+  };
+  return {
+    ...(payload.axisDirectionScores
+      ? {
+          axisDirectionScores: {
+            highTempo: payload.axisDirectionScores.highTempo ?? 0,
+            lowTempo: payload.axisDirectionScores.lowTempo ?? 0,
+            taskFocus: payload.axisDirectionScores.taskFocus ?? 0,
+            peopleFocus: payload.axisDirectionScores.peopleFocus ?? 0,
+          },
+        }
+      : {}),
+    ...(payload.derivedDiscScores
+      ? {
+          derivedDiscScores: {
+            D: payload.derivedDiscScores.D ?? 0,
+            I: payload.derivedDiscScores.I ?? 0,
+            S: payload.derivedDiscScores.S ?? 0,
+            C: payload.derivedDiscScores.C ?? 0,
+          },
+        }
+      : {}),
+  };
+};
+
+const buildSessionInspection = (input: {
+  sessionId: UUID;
+  assessmentVersion: AssessmentVersion;
+  result: ProfileResult;
+}): CompletedSessionInspectionDto => {
+  const { sessionId, assessmentVersion, result } = input;
+  const byDimension = new Map(
+    result.scoreBreakdown.map((item) => [item.dimensionKey.toUpperCase(), item.rawScore] as const),
+  );
+  const rawScores = {
+    D: byDimension.get('D') ?? 0,
+    I: byDimension.get('I') ?? 0,
+    S: byDimension.get('S') ?? 0,
+    C: byDimension.get('C') ?? 0,
+  };
+  const normalizedScores = {
+    D: result.scoreBreakdown.find((item) => item.dimensionKey.toUpperCase() === 'D')?.normalizedScore ?? 0,
+    I: result.scoreBreakdown.find((item) => item.dimensionKey.toUpperCase() === 'I')?.normalizedScore ?? 0,
+    S: result.scoreBreakdown.find((item) => item.dimensionKey.toUpperCase() === 'S')?.normalizedScore ?? 0,
+    C: result.scoreBreakdown.find((item) => item.dimensionKey.toUpperCase() === 'C')?.normalizedScore ?? 0,
+  };
+  const orderedDimensions = getOrderedDimensions(rawScores);
+  const primaryDimension = orderedDimensions[0] ?? 'D';
+  const secondaryDimension = orderedDimensions[1] ?? primaryDimension;
+
+  const qualityIndicators = buildQualityIndicators({
+    result,
+    scoringVersion: result.scoringVersion,
+    rawScores,
+    assessmentVersion,
+    responses: result.rawResponsesSnapshot,
+  });
+
+  const questionById = new Map(assessmentVersion.questions.map((question) => [question.id, question] as const));
+  const selectedAnswers = result.rawResponsesSnapshot.map((response) => {
+    const question = questionById.get(response.questionId);
+    const selectedOptions = response.selectedOptionIds
+      .map((optionId) => question?.options.find((option) => option.id === optionId))
+      .filter((option): option is NonNullable<typeof option> => Boolean(option))
+      .map((option) => ({
+        optionId: option.id,
+        optionCode: option.code,
+        optionLabel: option.label,
+        optionOrder: option.order,
+      }));
+    const metadata = question?.metadata as {
+      axisDirection?: AxisDirection;
+      role?: 'core' | 'mirror' | 'tiebreaker';
+      mirrorOf?: string;
+      weight?: number;
+      reverseKeyed?: boolean;
+    } | undefined;
+    return {
+      responseId: response.id,
+      questionId: response.questionId,
+      questionCode: question?.code ?? 'unknown',
+      prompt: question?.prompt ?? 'Unknown question',
+      selectedOptionIds: response.selectedOptionIds,
+      selectedOptions,
+      ...(metadata ? { itemMetadata: metadata } : {}),
+    };
+  });
+
+  const mirrorConsistency = result.measurementAnalysis?.mirrorConsistency ?? {
+    mirrorPairs: 0,
+    mirrorContradictions: 0,
+    contradictionRate: 0,
+    checks: [],
+  };
+
+  const itemContributions = result.measurementAnalysis?.itemContributions ?? [];
+  const responseDistributionsByQuestionCode = new Map(
+    (result.measurementAnalysis?.responseDistributions ?? []).map((distribution) => [
+      distribution.questionCode,
+      distribution.optionSelections,
+    ]),
+  );
+  const itemInsights = itemContributions.map((item) => {
+    const contributionToDimensions = axisContributionToDimensions(item.axisDirection, item.weightedContribution);
+    const adjusted = {
+      D: rawScores.D - contributionToDimensions.D,
+      I: rawScores.I - contributionToDimensions.I,
+      S: rawScores.S - contributionToDimensions.S,
+      C: rawScores.C - contributionToDimensions.C,
+    };
+    const adjustedTop = getOrderedDimensions(adjusted)[0];
+    return {
+      questionCode: item.questionCode,
+      axisDirection: item.axisDirection,
+      role: item.role,
+      weightedContribution: item.weightedContribution,
+      contributionToDimensions,
+      ...(responseDistributionsByQuestionCode.get(item.questionCode)
+        ? { responseDistribution: responseDistributionsByQuestionCode.get(item.questionCode) }
+        : {}),
+      influencedFinalProfile: adjustedTop !== primaryDimension,
+    };
+  });
+
+  const topInfluential = [...itemInsights]
+    .sort((a, b) => Math.abs(b.weightedContribution) - Math.abs(a.weightedContribution))
+    .slice(0, 3)
+    .map((item) => `${item.questionCode} (${item.weightedContribution.toFixed(2)})`)
+    .join(', ');
+  const axisDerivation = parseAxisDerivationPayload(result);
+  const explanationLines = [
+    `Session ${sessionId} finished with profile ${result.profileCode} (primary ${primaryDimension}, secondary ${secondaryDimension}).`,
+    `Quality score: ${qualityIndicators.score} (${qualityIndicators.flags.mirrorInconsistency ? 'mirror inconsistency detected' : 'mirror consistency acceptable'}).`,
+    `Mirror contradictions: ${mirrorConsistency.mirrorContradictions}/${mirrorConsistency.mirrorPairs} (rate ${mirrorConsistency.contradictionRate}).`,
+    `Most influential items by absolute weighted contribution: ${topInfluential || 'none'}.`,
+  ];
+
+  return {
+    sessionId,
+    assessmentVersionId: assessmentVersion.id,
+    scoringVersion: result.scoringVersion,
+    profile: {
+      profileCode: result.profileCode,
+      primaryDimension,
+      secondaryDimension,
+      scores: {
+        raw: rawScores,
+        normalized: normalizedScores,
+      },
+    },
+    selectedAnswers,
+    axisScoring: {
+      ...(axisDerivation.axisDirectionScores ? { axisDirectionScores: axisDerivation.axisDirectionScores } : {}),
+      ...(axisDerivation.derivedDiscScores ? { derivation: axisDerivation.derivedDiscScores } : {}),
+    },
+    mirrorConsistency: {
+      mirrorPairs: mirrorConsistency.mirrorPairs,
+      mirrorContradictions: mirrorConsistency.mirrorContradictions,
+      contradictionRate: mirrorConsistency.contradictionRate,
+      ...(mirrorConsistency.checks.length > 0 ? { checks: mirrorConsistency.checks } : {}),
+    },
+    qualityIndicators,
+    itemInsights,
+    explanation: explanationLines.join('\n'),
+  };
+};
+
 export const calculateResult = async (
   deps: {
     assessmentReadRepository: AssessmentReadRepository;
@@ -683,5 +962,38 @@ export const getSessionScoringDebug = async (
     sessionId,
     assessmentVersion,
     responses,
+  });
+};
+
+export const getCompletedSessionInspection = async (
+  deps: {
+    assessmentReadRepository: AssessmentReadRepository;
+    assessmentSessionRepository: AssessmentSessionRepository;
+    resultRepository: ResultRepository;
+  },
+  sessionId: UUID,
+): Promise<CompletedSessionInspectionDto> => {
+  const session = await deps.assessmentSessionRepository.getSession(sessionId);
+  if (!session) {
+    throw new Error('Session not found');
+  }
+  if (session.status !== 'completed') {
+    throw new Error('Session is not completed');
+  }
+
+  const assessmentVersion = await deps.assessmentReadRepository.getVersion(session.assessmentVersionId);
+  if (!assessmentVersion) {
+    throw new Error('Assessment version not found');
+  }
+
+  const result = await deps.resultRepository.getResultBySession(sessionId);
+  if (!result) {
+    throw new Error('Completed session result is unavailable');
+  }
+
+  return buildSessionInspection({
+    sessionId,
+    assessmentVersion,
+    result,
   });
 };

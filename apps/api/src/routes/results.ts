@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   calculateResult,
   completeSession,
+  getCompletedSessionInspection,
   getSessionResult,
   getSessionScoringDebug,
 } from '@disc-foundation/application';
@@ -163,6 +164,53 @@ export const registerResultRoutes = (app: FastifyInstance) => {
 
       if (error instanceof Error && error.message === 'Assessment version not found') {
         return reply.code(404).send({ message: 'Assessment version not found' });
+      }
+
+      throw error;
+    }
+  });
+
+  app.get('/internal/sessions/:sessionId/inspection', async (request, reply) => {
+    if (process.env.INTERNAL_SCORING_DEBUG_ENABLED !== 'true') {
+      return reply.code(404).send({ message: 'Not found' });
+    }
+
+    const params = sessionParamsSchema.parse(request.params);
+    app.log.info({ sessionId: params.sessionId }, 'completed session inspection requested');
+
+    try {
+      const inspection = await getCompletedSessionInspection(
+        {
+          assessmentReadRepository: app.repositories.assessmentReadRepository,
+          assessmentSessionRepository: app.repositories.assessmentSessionRepository,
+          resultRepository: app.repositories.resultRepository,
+        },
+        params.sessionId,
+      );
+
+      app.log.info(
+        {
+          sessionId: params.sessionId,
+          profileCode: inspection.profile.profileCode,
+          itemInsightCount: inspection.itemInsights.length,
+          mirrorContradictions: inspection.mirrorConsistency.mirrorContradictions,
+        },
+        'completed session inspection generated',
+      );
+
+      return reply.send(inspection);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Session not found') {
+        return reply.code(404).send({ message: 'Session not found' });
+      }
+      if (error instanceof Error && error.message === 'Session is not completed') {
+        return reply.code(409).send({ message: 'Session is not completed' });
+      }
+      if (error instanceof Error && error.message === 'Assessment version not found') {
+        return reply.code(404).send({ message: 'Assessment version not found' });
+      }
+      if (error instanceof Error && error.message === 'Completed session result is unavailable') {
+        return reply.code(409).send({ message: 'Completed session result is unavailable' });
       }
 
       throw error;
