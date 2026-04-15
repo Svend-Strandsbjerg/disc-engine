@@ -3,6 +3,7 @@ import type {
   AssessmentSession,
   AssessmentVersion,
   CandidateItem,
+  CandidateItemIntakeMetadata,
   CandidateItemGenerationBatch,
   CandidateItemReview,
   CandidateItemSimilarityMatch,
@@ -127,7 +128,7 @@ export interface CandidateItemRepository {
     aiConfidence?: number;
     aiSuggestedAlternatives?: string[];
     generationBatchId?: UUID;
-    intakeMetadata?: Record<string, unknown>;
+    intakeMetadata?: CandidateItemIntakeMetadata;
   }): Promise<CandidateItem>;
   createGenerationBatch(input: {
     generationId: string;
