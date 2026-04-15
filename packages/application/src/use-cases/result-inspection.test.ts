@@ -246,7 +246,10 @@ test('getCompletedSessionInspection returns selected answers and item influence 
 test('getCompletedSessionInspection rejects sessions that are not completed', async () => {
   const inProgressRepository: AssessmentSessionRepository = {
     ...assessmentSessionRepository,
-    getSession: async () => ({ ...session, status: 'in_progress', completedAt: undefined }),
+    getSession: async () => {
+      const { completedAt: _completedAt, ...inProgressSession } = session;
+      return { ...inProgressSession, status: 'in_progress' };
+    },
   };
 
   await assert.rejects(
