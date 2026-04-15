@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import type { CandidateItemRepository } from '@disc-foundation/application';
 import type {
   CandidateItem,
+  CandidateItemIntakeMetadata,
   CandidateItemGenerationBatch,
   CandidateItemReview,
   CandidateItemSimilarityMatch,
@@ -45,6 +46,75 @@ const DIRECTION_TO_DIMENSION: Record<CandidateItem['axisDirection'], string> = {
   peopleFocus: 'I',
 };
 
+const fromPrismaCandidateItemIntakeMetadata = (
+  value: Prisma.JsonValue | null,
+): CandidateItemIntakeMetadata | undefined => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  const duplicateMatches = raw.duplicateMatches;
+  if (!Array.isArray(duplicateMatches)) return undefined;
+
+  const mappedDuplicateMatches = duplicateMatches
+    .map((match) => {
+      if (!match || typeof match !== 'object' || Array.isArray(match)) return undefined;
+      const rawMatch = match as Record<string, unknown>;
+      if (
+        (rawMatch.source !== 'candidate_item' && rawMatch.source !== 'promoted_question') ||
+        typeof rawMatch.sourceId !== 'string' ||
+        typeof rawMatch.sourcePrompt !== 'string' ||
+        typeof rawMatch.similarityScore !== 'number' ||
+        typeof rawMatch.obviousDuplicate !== 'boolean'
+      ) {
+        return undefined;
+      }
+      return {
+        source: rawMatch.source,
+        sourceId: rawMatch.sourceId,
+        sourcePrompt: rawMatch.sourcePrompt,
+        similarityScore: rawMatch.similarityScore,
+        obviousDuplicate: rawMatch.obviousDuplicate,
+      };
+    })
+    .filter((match): match is CandidateItemIntakeMetadata['duplicateMatches'][number] => !!match);
+
+  if (
+    mappedDuplicateMatches.length !== duplicateMatches.length ||
+    typeof raw.normalizationVersion !== 'string' ||
+    typeof raw.duplicateScreeningVersion !== 'string' ||
+    typeof raw.likelyDuplicate !== 'boolean' ||
+    typeof raw.obviousDuplicate !== 'boolean'
+  ) {
+    return undefined;
+  }
+
+  return {
+    normalizationVersion: raw.normalizationVersion,
+    duplicateScreeningVersion: raw.duplicateScreeningVersion,
+    likelyDuplicate: raw.likelyDuplicate,
+    obviousDuplicate: raw.obviousDuplicate,
+    duplicateMatches: mappedDuplicateMatches,
+  };
+};
+
+const toPrismaCandidateItemIntakeMetadata = (
+  value: CandidateItemIntakeMetadata | undefined,
+): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput =>
+  value
+    ? ({
+        normalizationVersion: value.normalizationVersion,
+        duplicateScreeningVersion: value.duplicateScreeningVersion,
+        likelyDuplicate: value.likelyDuplicate,
+        obviousDuplicate: value.obviousDuplicate,
+        duplicateMatches: value.duplicateMatches.map((match) => ({
+          source: match.source,
+          sourceId: match.sourceId,
+          sourcePrompt: match.sourcePrompt,
+          similarityScore: match.similarityScore,
+          obviousDuplicate: match.obviousDuplicate,
+        })),
+      } satisfies Prisma.InputJsonValue)
+    : Prisma.JsonNull;
+
 const toCandidateItem = (record: {
   id: string;
   assessmentDefinitionId: string;
@@ -71,41 +141,43 @@ const toCandidateItem = (record: {
   promotedAt: Date | null;
   promotedAssessmentVersionId: string | null;
   promotedQuestionId: string | null;
-}): CandidateItem => ({
-  id: record.id,
-  assessmentDefinitionId: record.assessmentDefinitionId,
-  prompt: record.prompt,
-  axis: record.axis,
-  axisDirection: record.axisDirection,
-  weight: record.weight,
-  reverseKeyed: record.reverseKeyed,
-  role: record.role,
-  ...(record.mirrorCandidateItemId ? { mirrorCandidateItemId: record.mirrorCandidateItemId } : {}),
-  contextApplicability: record.contextApplicability as ContextApplicability[],
-  disambiguationTags: record.disambiguationTags,
-  ...(record.uncertaintyProfile ? { uncertaintyProfile: record.uncertaintyProfile } : {}),
-  aiMetadata: {
-    aiGenerated: record.aiGenerated,
-    ...(record.aiModel ? { aiModel: record.aiModel } : {}),
-    ...(record.aiPromptVersion ? { aiPromptVersion: record.aiPromptVersion } : {}),
-    ...(record.aiRationale ? { aiRationale: record.aiRationale } : {}),
-    ...(record.aiConfidence !== null ? { aiConfidence: record.aiConfidence } : {}),
-    ...(record.aiSuggestedAlternatives.length > 0
-      ? { aiSuggestedAlternatives: record.aiSuggestedAlternatives }
+}): CandidateItem => {
+  const intakeMetadata = fromPrismaCandidateItemIntakeMetadata(record.intakeMetadata);
+
+  return {
+    id: record.id,
+    assessmentDefinitionId: record.assessmentDefinitionId,
+    prompt: record.prompt,
+    axis: record.axis,
+    axisDirection: record.axisDirection,
+    weight: record.weight,
+    reverseKeyed: record.reverseKeyed,
+    role: record.role,
+    ...(record.mirrorCandidateItemId ? { mirrorCandidateItemId: record.mirrorCandidateItemId } : {}),
+    contextApplicability: record.contextApplicability as ContextApplicability[],
+    disambiguationTags: record.disambiguationTags,
+    ...(record.uncertaintyProfile ? { uncertaintyProfile: record.uncertaintyProfile } : {}),
+    aiMetadata: {
+      aiGenerated: record.aiGenerated,
+      ...(record.aiModel ? { aiModel: record.aiModel } : {}),
+      ...(record.aiPromptVersion ? { aiPromptVersion: record.aiPromptVersion } : {}),
+      ...(record.aiRationale ? { aiRationale: record.aiRationale } : {}),
+      ...(record.aiConfidence !== null ? { aiConfidence: record.aiConfidence } : {}),
+      ...(record.aiSuggestedAlternatives.length > 0
+        ? { aiSuggestedAlternatives: record.aiSuggestedAlternatives }
+        : {}),
+    },
+    ...(record.generationBatchId ? { generationBatchId: record.generationBatchId } : {}),
+    ...(intakeMetadata ? { intakeMetadata } : {}),
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+    ...(record.promotedAt ? { promotedAt: record.promotedAt } : {}),
+    ...(record.promotedAssessmentVersionId
+      ? { promotedAssessmentVersionId: record.promotedAssessmentVersionId }
       : {}),
-  },
-  ...(record.generationBatchId ? { generationBatchId: record.generationBatchId } : {}),
-  ...(record.intakeMetadata && typeof record.intakeMetadata === 'object'
-    ? { intakeMetadata: record.intakeMetadata as CandidateItem['intakeMetadata'] }
-    : {}),
-  createdAt: record.createdAt,
-  updatedAt: record.updatedAt,
-  ...(record.promotedAt ? { promotedAt: record.promotedAt } : {}),
-  ...(record.promotedAssessmentVersionId
-    ? { promotedAssessmentVersionId: record.promotedAssessmentVersionId }
-    : {}),
-  ...(record.promotedQuestionId ? { promotedQuestionId: record.promotedQuestionId } : {}),
-});
+    ...(record.promotedQuestionId ? { promotedQuestionId: record.promotedQuestionId } : {}),
+  };
+};
 
 const toCandidateItemReview = (record: {
   id: string;
@@ -181,7 +253,7 @@ export class PrismaCandidateItemRepository implements CandidateItemRepository {
     aiConfidence?: number;
     aiSuggestedAlternatives?: string[];
     generationBatchId?: UUID;
-    intakeMetadata?: Record<string, unknown>;
+    intakeMetadata?: CandidateItemIntakeMetadata;
   }): Promise<CandidateItem> {
     const tenantId = getTenantId();
 
@@ -224,7 +296,7 @@ export class PrismaCandidateItemRepository implements CandidateItemRepository {
         aiConfidence: input.aiConfidence ?? null,
         aiSuggestedAlternatives: input.aiSuggestedAlternatives ?? [],
         generationBatchId: input.generationBatchId ?? null,
-        intakeMetadata: input.intakeMetadata ?? Prisma.JsonNull,
+        intakeMetadata: toPrismaCandidateItemIntakeMetadata(input.intakeMetadata),
       },
     });
 
