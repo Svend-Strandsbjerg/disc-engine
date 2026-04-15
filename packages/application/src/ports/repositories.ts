@@ -26,6 +26,15 @@ import type { UUID } from '@disc-foundation/shared';
 export interface AssessmentReadRepository {
   getVersion(versionId: UUID): Promise<AssessmentVersion | null>;
   getActivePublishedVersion(assessmentDefinitionId: UUID): Promise<AssessmentVersion | null>;
+  listLatestPublishedVersionsByDefinitionKeys(definitionKeys: string[]): Promise<
+    Array<{
+      assessmentDefinitionId: UUID;
+      assessmentDefinitionKey: string;
+      assessmentVersionId: UUID;
+      versionNumber: number;
+      publishedAt?: Date;
+    }>
+  >;
 }
 
 export interface AssessmentWriteRepository {

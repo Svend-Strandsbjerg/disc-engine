@@ -304,6 +304,65 @@ export class PrismaAssessmentRepository implements AssessmentReadRepository, Ass
     return record ? mapVersion(record) : null;
   }
 
+  async listLatestPublishedVersionsByDefinitionKeys(definitionKeys: string[]): Promise<
+    Array<{
+      assessmentDefinitionId: UUID;
+      assessmentDefinitionKey: string;
+      assessmentVersionId: UUID;
+      versionNumber: number;
+      publishedAt?: Date;
+    }>
+  > {
+    if (definitionKeys.length === 0) {
+      return [];
+    }
+
+    const tenantId = getTenantId();
+    const records = await prisma.assessmentVersion.findMany({
+      where: {
+        tenantId,
+        status: 'published',
+        assessmentDefinition: {
+          key: { in: definitionKeys },
+          tenantId,
+        },
+      },
+      orderBy: [
+        { assessmentDefinitionId: 'asc' },
+        { versionNumber: 'desc' },
+        { publishedAt: 'desc' },
+      ],
+      select: {
+        id: true,
+        versionNumber: true,
+        publishedAt: true,
+        assessmentDefinitionId: true,
+        assessmentDefinition: {
+          select: {
+            key: true,
+          },
+        },
+      },
+    });
+
+    const latestByDefinitionKey = new Map<string, (typeof records)[number]>();
+    for (const record of records) {
+      const definitionKey = record.assessmentDefinition.key;
+      if (latestByDefinitionKey.has(definitionKey)) {
+        continue;
+      }
+      latestByDefinitionKey.set(definitionKey, record);
+    }
+
+    return [...latestByDefinitionKey.values()].map((record) => ({
+      assessmentDefinitionId: record.assessmentDefinitionId,
+      assessmentDefinitionKey: record.assessmentDefinition.key,
+      assessmentVersionId: record.id,
+      versionNumber: record.versionNumber,
+      ...(record.publishedAt ? { publishedAt: record.publishedAt } : {}),
+    }));
+  }
+
   async addScoreDimension(input: {
     assessmentVersionId: UUID;
     key: string;
