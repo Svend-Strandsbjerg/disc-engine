@@ -11,6 +11,32 @@ import { importCandidateItemGenerationBatch } from './candidate-item.js';
 
 const assessmentDefinitionId = '00000000-0000-0000-0000-000000000111';
 
+function assertIsRecord(
+  value: unknown,
+  message: string,
+): asserts value is Record<string, unknown> {
+  assert.equal(typeof value, 'object', message);
+  assert.notEqual(value, null, message);
+}
+
+function assertIsString(value: unknown, message: string): asserts value is string {
+  assert.equal(typeof value, 'string', message);
+}
+
+function assertIsNumber(value: unknown, message: string): asserts value is number {
+  assert.equal(typeof value, 'number', message);
+}
+
+function assertIsBoolean(value: unknown, message: string): asserts value is boolean {
+  assert.equal(typeof value, 'boolean', message);
+}
+
+function assertIsDuplicateSource(
+  value: unknown,
+): asserts value is CandidateItemDuplicateMatch['source'] {
+  assert.ok(value === 'candidate_item' || value === 'promoted_question');
+}
+
 const toCandidateItemIntakeMetadata = (
   value: Record<string, unknown>,
 ): CandidateItemIntakeMetadata => {
@@ -20,26 +46,25 @@ const toCandidateItemIntakeMetadata = (
   const obviousDuplicate = value.obviousDuplicate;
   const duplicateMatchesRaw = value.duplicateMatches;
 
-  assert.equal(typeof normalizationVersion, 'string');
-  assert.equal(typeof duplicateScreeningVersion, 'string');
-  assert.equal(typeof likelyDuplicate, 'boolean');
-  assert.equal(typeof obviousDuplicate, 'boolean');
+  assertIsString(normalizationVersion, 'Expected normalizationVersion to be a string');
+  assertIsString(duplicateScreeningVersion, 'Expected duplicateScreeningVersion to be a string');
+  assertIsBoolean(likelyDuplicate, 'Expected likelyDuplicate to be a boolean');
+  assertIsBoolean(obviousDuplicate, 'Expected obviousDuplicate to be a boolean');
   assert.ok(Array.isArray(duplicateMatchesRaw), 'Expected duplicateMatches to be an array');
 
   const duplicateMatches: CandidateItemDuplicateMatch[] = duplicateMatchesRaw.map((entry) => {
-    assert.equal(typeof entry, 'object');
-    assert.ok(entry !== null);
-    const match = entry as Record<string, unknown>;
+    assertIsRecord(entry, 'Expected duplicate match entry to be an object');
+    const match = entry;
     const source = match.source;
     const sourceId = match.sourceId;
     const sourcePrompt = match.sourcePrompt;
     const similarityScore = match.similarityScore;
     const duplicate = match.obviousDuplicate;
-    assert.ok(source === 'candidate_item' || source === 'promoted_question');
-    assert.equal(typeof sourceId, 'string');
-    assert.equal(typeof sourcePrompt, 'string');
-    assert.equal(typeof similarityScore, 'number');
-    assert.equal(typeof duplicate, 'boolean');
+    assertIsDuplicateSource(source);
+    assertIsString(sourceId, 'Expected sourceId to be a string');
+    assertIsString(sourcePrompt, 'Expected sourcePrompt to be a string');
+    assertIsNumber(similarityScore, 'Expected similarityScore to be a number');
+    assertIsBoolean(duplicate, 'Expected obviousDuplicate to be a boolean');
     return {
       source,
       sourceId,
