@@ -1,10 +1,62 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { CandidateItem, CandidateItemGenerationBatch } from '@disc-foundation/domain';
+import type {
+  CandidateItem,
+  CandidateItemDuplicateMatch,
+  CandidateItemGenerationBatch,
+  CandidateItemIntakeMetadata,
+} from '@disc-foundation/domain';
 import type { CandidateItemRepository } from '../ports/repositories.js';
 import { importCandidateItemGenerationBatch } from './candidate-item.js';
 
 const assessmentDefinitionId = '00000000-0000-0000-0000-000000000111';
+
+const toCandidateItemIntakeMetadata = (
+  value: Record<string, unknown>,
+): CandidateItemIntakeMetadata => {
+  const normalizationVersion = value.normalizationVersion;
+  const duplicateScreeningVersion = value.duplicateScreeningVersion;
+  const likelyDuplicate = value.likelyDuplicate;
+  const obviousDuplicate = value.obviousDuplicate;
+  const duplicateMatchesRaw = value.duplicateMatches;
+
+  assert.equal(typeof normalizationVersion, 'string');
+  assert.equal(typeof duplicateScreeningVersion, 'string');
+  assert.equal(typeof likelyDuplicate, 'boolean');
+  assert.equal(typeof obviousDuplicate, 'boolean');
+  assert.ok(Array.isArray(duplicateMatchesRaw), 'Expected duplicateMatches to be an array');
+
+  const duplicateMatches: CandidateItemDuplicateMatch[] = duplicateMatchesRaw.map((entry) => {
+    assert.equal(typeof entry, 'object');
+    assert.ok(entry !== null);
+    const match = entry as Record<string, unknown>;
+    const source = match.source;
+    const sourceId = match.sourceId;
+    const sourcePrompt = match.sourcePrompt;
+    const similarityScore = match.similarityScore;
+    const duplicate = match.obviousDuplicate;
+    assert.ok(source === 'candidate_item' || source === 'promoted_question');
+    assert.equal(typeof sourceId, 'string');
+    assert.equal(typeof sourcePrompt, 'string');
+    assert.equal(typeof similarityScore, 'number');
+    assert.equal(typeof duplicate, 'boolean');
+    return {
+      source,
+      sourceId,
+      sourcePrompt,
+      similarityScore,
+      obviousDuplicate: duplicate,
+    };
+  });
+
+  return {
+    normalizationVersion,
+    duplicateScreeningVersion,
+    likelyDuplicate,
+    obviousDuplicate,
+    duplicateMatches,
+  };
+};
 
 const createRepositoryMock = (): CandidateItemRepository => {
   const createdItems: CandidateItem[] = [];
@@ -28,7 +80,9 @@ const createRepositoryMock = (): CandidateItemRepository => {
           ...(input.aiPromptVersion ? { aiPromptVersion: input.aiPromptVersion } : {}),
         },
         ...(input.generationBatchId ? { generationBatchId: input.generationBatchId } : {}),
-        ...(input.intakeMetadata ? { intakeMetadata: input.intakeMetadata as CandidateItem['intakeMetadata'] } : {}),
+        ...(input.intakeMetadata
+          ? { intakeMetadata: toCandidateItemIntakeMetadata(input.intakeMetadata) }
+          : {}),
         createdAt: new Date('2026-01-01T00:00:00.000Z'),
         updatedAt: new Date('2026-01-01T00:00:00.000Z'),
       };

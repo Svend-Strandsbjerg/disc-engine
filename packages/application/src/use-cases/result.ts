@@ -736,6 +736,7 @@ const buildSessionInspection = (input: {
     ]),
   );
   const itemInsights = itemContributions.map((item) => {
+    const responseDistribution = responseDistributionsByQuestionCode.get(item.questionCode);
     const contributionToDimensions = axisContributionToDimensions(item.axisDirection, item.weightedContribution);
     const adjusted = {
       D: rawScores.D - contributionToDimensions.D,
@@ -750,9 +751,7 @@ const buildSessionInspection = (input: {
       role: item.role,
       weightedContribution: item.weightedContribution,
       contributionToDimensions,
-      ...(responseDistributionsByQuestionCode.get(item.questionCode)
-        ? { responseDistribution: responseDistributionsByQuestionCode.get(item.questionCode) }
-        : {}),
+      ...(responseDistribution !== undefined ? { responseDistribution } : {}),
       influencedFinalProfile: adjustedTop !== primaryDimension,
     };
   });
