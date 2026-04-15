@@ -15,6 +15,7 @@ export const getAssessmentVersionMetadata = async (
     assessmentDefinitionId: version.assessmentDefinitionId,
     versionNumber: version.versionNumber,
     scoringVersion: version.scoringVersion,
+    metadata: version.metadata,
     status: version.status,
     questionCount: version.questionCount,
     dimensions: version.dimensions.map((dimension) => ({

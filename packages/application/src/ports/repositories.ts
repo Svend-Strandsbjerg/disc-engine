@@ -1,6 +1,7 @@
 import type {
   AssessmentDefinition,
   AssessmentSession,
+  AssessmentVersionMetadata,
   AssessmentVersion,
   CandidateItem,
   CandidateItemIntakeMetadata,
@@ -33,14 +34,17 @@ export interface AssessmentWriteRepository {
     key: string;
     name: string;
     description?: string;
+    productLine: string;
   }): Promise<AssessmentDefinition>;
   createAssessmentVersionDraft(input: {
     assessmentDefinitionId: UUID;
     scoringVersion: string;
+    metadata: AssessmentVersionMetadata;
   }): Promise<AssessmentVersion>;
   cloneAssessmentVersion(input: {
     sourceVersionId: UUID;
     scoringVersion: string;
+    metadata?: AssessmentVersionMetadata;
   }): Promise<AssessmentVersion>;
   publishAssessmentVersion(versionId: UUID): Promise<AssessmentVersion>;
   updateDraftVersion(version: AssessmentVersion): Promise<AssessmentVersion>;
@@ -121,6 +125,15 @@ export interface CandidateItemRepository {
     contextApplicability: ContextApplicability[];
     disambiguationTags?: string[];
     uncertaintyProfile?: string;
+    adaptiveEligible?: boolean;
+    itemPoolGroupIds?: string[];
+    routingTags?: string[];
+    uncertaintyTargetAreas?: string[];
+    calibration?: {
+      informationValue?: number;
+      discrimination?: number;
+      difficulty?: number;
+    };
     aiGenerated: boolean;
     aiModel?: string;
     aiPromptVersion?: string;

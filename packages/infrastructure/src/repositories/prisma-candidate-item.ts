@@ -128,6 +128,11 @@ const toCandidateItem = (record: {
   contextApplicability: string[];
   disambiguationTags: string[];
   uncertaintyProfile: string | null;
+  adaptiveEligible: boolean;
+  itemPoolGroupIds: string[];
+  routingTags: string[];
+  uncertaintyTargetAreas: string[];
+  calibration: Prisma.JsonValue | null;
   aiGenerated: boolean;
   aiModel: string | null;
   aiPromptVersion: string | null;
@@ -157,6 +162,17 @@ const toCandidateItem = (record: {
     contextApplicability: record.contextApplicability as ContextApplicability[],
     disambiguationTags: record.disambiguationTags,
     ...(record.uncertaintyProfile ? { uncertaintyProfile: record.uncertaintyProfile } : {}),
+    adaptiveEligible: record.adaptiveEligible,
+    itemPoolGroupIds: record.itemPoolGroupIds,
+    routingTags: record.routingTags,
+    uncertaintyTargetAreas: record.uncertaintyTargetAreas,
+    ...(record.calibration &&
+    typeof record.calibration === 'object' &&
+    !Array.isArray(record.calibration)
+      ? {
+          calibration: record.calibration as NonNullable<CandidateItem['calibration']>,
+        }
+      : {}),
     aiMetadata: {
       aiGenerated: record.aiGenerated,
       ...(record.aiModel ? { aiModel: record.aiModel } : {}),
@@ -246,6 +262,15 @@ export class PrismaCandidateItemRepository implements CandidateItemRepository {
     contextApplicability: ContextApplicability[];
     disambiguationTags?: string[];
     uncertaintyProfile?: string;
+    adaptiveEligible?: boolean;
+    itemPoolGroupIds?: string[];
+    routingTags?: string[];
+    uncertaintyTargetAreas?: string[];
+    calibration?: {
+      informationValue?: number;
+      discrimination?: number;
+      difficulty?: number;
+    };
     aiGenerated: boolean;
     aiModel?: string;
     aiPromptVersion?: string;
@@ -289,6 +314,11 @@ export class PrismaCandidateItemRepository implements CandidateItemRepository {
         contextApplicability: input.contextApplicability,
         disambiguationTags: input.disambiguationTags ?? [],
         uncertaintyProfile: input.uncertaintyProfile ?? null,
+        adaptiveEligible: input.adaptiveEligible ?? false,
+        itemPoolGroupIds: input.itemPoolGroupIds ?? [],
+        routingTags: input.routingTags ?? [],
+        uncertaintyTargetAreas: input.uncertaintyTargetAreas ?? [],
+        calibration: input.calibration ? (input.calibration as Prisma.InputJsonValue) : Prisma.JsonNull,
         aiGenerated: input.aiGenerated,
         aiModel: input.aiModel ?? null,
         aiPromptVersion: input.aiPromptVersion ?? null,

@@ -99,6 +99,11 @@ const createRepositoryMock = (): CandidateItemRepository => {
         role: input.role,
         contextApplicability: input.contextApplicability,
         disambiguationTags: input.disambiguationTags ?? [],
+        adaptiveEligible: input.adaptiveEligible ?? false,
+        itemPoolGroupIds: input.itemPoolGroupIds ?? [],
+        routingTags: input.routingTags ?? [],
+        uncertaintyTargetAreas: input.uncertaintyTargetAreas ?? [],
+        ...(input.calibration ? { calibration: input.calibration } : {}),
         aiMetadata: {
           aiGenerated: input.aiGenerated,
           ...(input.aiModel ? { aiModel: input.aiModel } : {}),

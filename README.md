@@ -51,6 +51,32 @@ On publish:
 
 `GET /assessments/:id/active-version` resolves the latest published version by descending `versionNumber` (and `publishedAt` as tie-breaker).
 
+## DISC assessment family (free / standard / deep)
+
+The DISC engine now supports a single product line (`disc`) with explicit, versioned depth variants:
+
+- `disc-free-16` (screening tier, 16 items, fixed form)
+- `disc-standard-30` (standard tier, ~30 items, fixed deterministic form with adaptive metadata)
+- `disc-deep-80` (deep tier, 80 items, broader coverage + disambiguation depth)
+
+Why this structure:
+
+- **16-item free tier** keeps completion friction low for screening and early funnel use.
+- **~30-item standard tier** balances precision and completion time for common coaching/team workflows.
+- **80+ deep tier** increases stability and disambiguation coverage (mirror/tiebreaker support) when higher confidence is required.
+
+How versions relate:
+
+- All three belong to the same assessment definition/product line and share the same DISC dimension model.
+- The shorter tiers are deterministic subsets of the richer item bank.
+- Each version has independent `assessmentVersionId`, `assessmentVersionKey`, `scoringVersion`, item set, and intended-use metadata.
+
+CAT-readiness (without CAT runtime yet):
+
+- Version metadata now includes `form` and structured adaptive fields (`adaptiveEligible`, pool groups, routing tags, uncertainty targets).
+- Candidate items now carry adaptive placeholders (eligibility, pool grouping, routing/disambiguation tags, uncertainty targets, calibration placeholder).
+- Runtime remains fixed-form and deterministic; no adaptive routing/scoring logic has been introduced yet.
+
 
 ## Draft content editing
 

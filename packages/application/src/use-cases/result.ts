@@ -205,7 +205,7 @@ const normalize = (raw: number, denominator: number): number => {
 };
 
 const useTotalShareNormalization = (scoringVersion: string): boolean => {
-  return scoringVersion === 'disc-v1-likert-16';
+  return scoringVersion === 'disc-v1-likert-16' || scoringVersion.startsWith('disc-v2-');
 };
 
 const clampScore = (value: number): number => Math.max(0, Math.min(100, value));
@@ -233,9 +233,9 @@ const buildProfileSummary = (
   const second = ranked[1]?.normalized ?? 0;
   const bottom = ranked[ranked.length - 1]?.normalized ?? 0;
 
-  if (scoringVersion === 'disc-v1-likert-16') {
+  if (scoringVersion === 'disc-v1-likert-16' || scoringVersion.startsWith('disc-v2-')) {
     return {
-      version: 'disc-v1-likert-16',
+      version: scoringVersion.startsWith('disc-v2-') ? 'disc-v2-family' : 'disc-v1-likert-16',
       profileCode: `${primary}${secondary}`,
       dimensionOrder: ranked.map((item) => item.dimension),
       flags: {

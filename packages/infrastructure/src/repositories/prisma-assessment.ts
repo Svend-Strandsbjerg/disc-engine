@@ -5,6 +5,7 @@ import type {
 } from '@disc-foundation/application';
 import type {
   AssessmentDefinition,
+  AssessmentVersionMetadata,
   AssessmentVersion,
   DimensionImpact,
   Question,
@@ -52,6 +53,62 @@ const parseImpacts = (value: Prisma.JsonValue): DimensionImpact[] => {
     .map((item) => ({ dimensionKey: item.dimensionKey, weight: item.weight }));
 };
 
+const defaultVersionMetadata = (versionId: string): AssessmentVersionMetadata => ({
+  assessmentVersionKey: `assessment-version-${versionId}`,
+  tier: 'standard',
+  intendedUse: 'General DISC assessment',
+  expectedItemCount: 30,
+  expectedCompletionTimeMinutes: 12,
+  form: 'fixed_form',
+  adaptive: {
+    adaptiveEligible: false,
+    itemPoolGroupIds: [],
+    uncertaintyTargetAreas: [],
+    routingTags: [],
+  },
+});
+
+const parseVersionMetadata = (
+  input: Prisma.JsonValue,
+  fallback: AssessmentVersionMetadata,
+): AssessmentVersionMetadata => {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return fallback;
+  const raw = input as Record<string, unknown>;
+  const adaptive = raw.adaptive;
+  if (
+    typeof raw.assessmentVersionKey !== 'string' ||
+    (raw.tier !== 'free' && raw.tier !== 'standard' && raw.tier !== 'deep') ||
+    typeof raw.intendedUse !== 'string' ||
+    typeof raw.expectedItemCount !== 'number' ||
+    typeof raw.expectedCompletionTimeMinutes !== 'number' ||
+    (raw.form !== 'fixed_form' && raw.form !== 'future_adaptive_ready') ||
+    !adaptive ||
+    typeof adaptive !== 'object' ||
+    Array.isArray(adaptive)
+  ) {
+    return fallback;
+  }
+  const adaptiveRaw = adaptive as Record<string, unknown>;
+  const toStringArray = (value: unknown): string[] =>
+    Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
+
+  return {
+    assessmentVersionKey: raw.assessmentVersionKey,
+    tier: raw.tier,
+    intendedUse: raw.intendedUse,
+    ...(typeof raw.contextFrame === 'string' ? { contextFrame: raw.contextFrame } : {}),
+    expectedItemCount: raw.expectedItemCount,
+    expectedCompletionTimeMinutes: raw.expectedCompletionTimeMinutes,
+    form: raw.form,
+    adaptive: {
+      adaptiveEligible: adaptiveRaw.adaptiveEligible === true,
+      itemPoolGroupIds: toStringArray(adaptiveRaw.itemPoolGroupIds),
+      uncertaintyTargetAreas: toStringArray(adaptiveRaw.uncertaintyTargetAreas),
+      routingTags: toStringArray(adaptiveRaw.routingTags),
+    },
+  };
+};
+
 const mapVersion = (record: VersionRecord): AssessmentVersion => {
   const dimensions: ScoreDimension[] = record.scoreDimensions.map((dimension) => ({
     id: dimension.id,
@@ -94,6 +151,19 @@ const mapVersion = (record: VersionRecord): AssessmentVersion => {
     assessmentDefinitionId: record.assessmentDefinitionId,
     versionNumber: record.versionNumber,
     scoringVersion: record.scoringVersion,
+    metadata: parseVersionMetadata(
+      record.adaptiveMetadata,
+      {
+        ...defaultVersionMetadata(record.id),
+        assessmentVersionKey: record.assessmentVersionKey,
+        tier: (record.tier as AssessmentVersionMetadata['tier']) ?? 'standard',
+        intendedUse: record.intendedUse,
+        ...(record.contextFrame ? { contextFrame: record.contextFrame } : {}),
+        expectedItemCount: record.expectedItemCount,
+        expectedCompletionTimeMinutes: record.expectedCompletionTimeMinutes,
+        form: (record.form as AssessmentVersionMetadata['form']) ?? 'fixed_form',
+      },
+    ),
     status: record.status,
     questionCount: record.questionCount,
     createdAt: record.createdAt,
@@ -127,6 +197,7 @@ export class PrismaAssessmentRepository implements AssessmentReadRepository, Ass
     key: string;
     name: string;
     description?: string;
+    productLine: string;
   }): Promise<AssessmentDefinition> {
     const tenantId = getTenantId();
     const created = await prisma.assessmentDefinition.create({ data: { ...input, tenantId } });
@@ -134,6 +205,7 @@ export class PrismaAssessmentRepository implements AssessmentReadRepository, Ass
       id: created.id,
       key: created.key,
       name: created.name,
+      productLine: created.productLine,
       ...(created.description ? { description: created.description } : {}),
       createdAt: created.createdAt,
       updatedAt: created.updatedAt,
@@ -143,6 +215,7 @@ export class PrismaAssessmentRepository implements AssessmentReadRepository, Ass
   async createAssessmentVersionDraft(input: {
     assessmentDefinitionId: UUID;
     scoringVersion: string;
+    metadata: AssessmentVersionMetadata;
   }): Promise<AssessmentVersion> {
     const tenantId = getTenantId();
     const definition = await prisma.assessmentDefinition.findFirst({
@@ -162,6 +235,14 @@ export class PrismaAssessmentRepository implements AssessmentReadRepository, Ass
         assessmentDefinitionId: input.assessmentDefinitionId,
         tenantId,
         scoringVersion: input.scoringVersion,
+        assessmentVersionKey: input.metadata.assessmentVersionKey,
+        tier: input.metadata.tier,
+        intendedUse: input.metadata.intendedUse,
+        contextFrame: input.metadata.contextFrame ?? null,
+        expectedItemCount: input.metadata.expectedItemCount,
+        expectedCompletionTimeMinutes: input.metadata.expectedCompletionTimeMinutes,
+        form: input.metadata.form,
+        adaptiveMetadata: toInputJsonValue(input.metadata),
         versionNumber: (latest?.versionNumber ?? 0) + 1,
         status: 'draft',
         questionCount: 0,
@@ -175,6 +256,7 @@ export class PrismaAssessmentRepository implements AssessmentReadRepository, Ass
   async cloneAssessmentVersion(input: {
     sourceVersionId: UUID;
     scoringVersion: string;
+    metadata?: AssessmentVersionMetadata;
   }): Promise<AssessmentVersion> {
     const tenantId = getTenantId();
     return prisma.$transaction(async (tx) => {
@@ -195,6 +277,18 @@ export class PrismaAssessmentRepository implements AssessmentReadRepository, Ass
           assessmentDefinitionId: source.assessmentDefinitionId,
           tenantId,
           scoringVersion: input.scoringVersion,
+          assessmentVersionKey:
+            input.metadata?.assessmentVersionKey ?? `${source.assessmentVersionKey}-clone`,
+          tier: input.metadata?.tier ?? source.tier,
+          intendedUse: input.metadata?.intendedUse ?? source.intendedUse,
+          contextFrame: input.metadata?.contextFrame ?? source.contextFrame,
+          expectedItemCount: input.metadata?.expectedItemCount ?? source.expectedItemCount,
+          expectedCompletionTimeMinutes:
+            input.metadata?.expectedCompletionTimeMinutes ?? source.expectedCompletionTimeMinutes,
+          form: input.metadata?.form ?? source.form,
+          adaptiveMetadata: toInputJsonValue(
+            input.metadata ?? parseVersionMetadata(source.adaptiveMetadata, defaultVersionMetadata(source.id)),
+          ),
           versionNumber: (latest?.versionNumber ?? 0) + 1,
           status: 'draft',
           questionCount: source.questionCount,
@@ -282,7 +376,18 @@ export class PrismaAssessmentRepository implements AssessmentReadRepository, Ass
     await assertDraftVersion(version.id);
     const updated = await prisma.assessmentVersion.update({
       where: { id: version.id },
-      data: { scoringVersion: version.scoringVersion, questionCount: version.questionCount },
+      data: {
+        scoringVersion: version.scoringVersion,
+        questionCount: version.questionCount,
+        assessmentVersionKey: version.metadata.assessmentVersionKey,
+        tier: version.metadata.tier,
+        intendedUse: version.metadata.intendedUse,
+        contextFrame: version.metadata.contextFrame ?? null,
+        expectedItemCount: version.metadata.expectedItemCount,
+        expectedCompletionTimeMinutes: version.metadata.expectedCompletionTimeMinutes,
+        form: version.metadata.form,
+        adaptiveMetadata: toInputJsonValue(version.metadata),
+      },
       include: versionInclude,
     });
     return mapVersion(updated);

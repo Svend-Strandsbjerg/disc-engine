@@ -21,14 +21,31 @@ const createAssessmentSchema = z.object({
   key: z.string().min(2),
   name: z.string().min(2),
   description: z.string().optional(),
+  productLine: z.string().min(2).default('disc'),
 });
 
 const createVersionSchema = z.object({
   scoringVersion: z.string().min(1),
+  metadata: z.object({
+    assessmentVersionKey: z.string().min(3),
+    tier: z.enum(['free', 'standard', 'deep']),
+    intendedUse: z.string().min(3),
+    contextFrame: z.string().optional(),
+    expectedItemCount: z.number().int().positive(),
+    expectedCompletionTimeMinutes: z.number().int().positive(),
+    form: z.enum(['fixed_form', 'future_adaptive_ready']),
+    adaptive: z.object({
+      adaptiveEligible: z.boolean(),
+      itemPoolGroupIds: z.array(z.string().min(1)).default([]),
+      uncertaintyTargetAreas: z.array(z.string().min(1)).default([]),
+      routingTags: z.array(z.string().min(1)).default([]),
+    }),
+  }),
 });
 
 const cloneVersionSchema = z.object({
   scoringVersion: z.string().min(1),
+  metadata: createVersionSchema.shape.metadata.optional(),
 });
 const idParamsSchema = z.object({ id: z.string().uuid() });
 
@@ -53,6 +70,17 @@ const createCandidateItemSchema = z.object({
   contextApplicability: z.array(z.enum(['work', 'private', 'generic'])).min(1),
   disambiguationTags: z.array(z.string().min(1)).optional(),
   uncertaintyProfile: z.string().optional(),
+  adaptiveEligible: z.boolean().optional(),
+  itemPoolGroupIds: z.array(z.string().min(1)).optional(),
+  routingTags: z.array(z.string().min(1)).optional(),
+  uncertaintyTargetAreas: z.array(z.string().min(1)).optional(),
+  calibration: z
+    .object({
+      informationValue: z.number().optional(),
+      discrimination: z.number().optional(),
+      difficulty: z.number().optional(),
+    })
+    .optional(),
   aiGenerated: z.boolean().default(false),
   aiModel: z.string().optional(),
   aiPromptVersion: z.string().optional(),
@@ -111,6 +139,17 @@ const importGenerationBatchSchema = z.object({
         contextApplicability: z.array(z.enum(['work', 'private', 'generic'])).min(1),
         disambiguationTags: z.array(z.string()).optional(),
         uncertaintyProfile: z.string().optional(),
+        adaptiveEligible: z.boolean().optional(),
+        itemPoolGroupIds: z.array(z.string()).optional(),
+        routingTags: z.array(z.string()).optional(),
+        uncertaintyTargetAreas: z.array(z.string()).optional(),
+        calibration: z
+          .object({
+            informationValue: z.number().optional(),
+            discrimination: z.number().optional(),
+            difficulty: z.number().optional(),
+          })
+          .optional(),
         aiGenerated: z.boolean().default(true),
         aiModel: z.string().min(1),
         aiPromptVersion: z.string().min(1),
@@ -131,6 +170,7 @@ export const registerManagementRoutes = (app: FastifyInstance) => {
       {
         key: body.key,
         name: body.name,
+        productLine: body.productLine,
         ...(body.description !== undefined ? { description: body.description } : {}),
       },
     );
@@ -144,7 +184,11 @@ export const registerManagementRoutes = (app: FastifyInstance) => {
 
     const created = await createAssessmentVersion(
       { assessmentWriteRepository: app.repositories.assessmentWriteRepository },
-      { assessmentDefinitionId: params.id, scoringVersion: body.scoringVersion },
+      {
+        assessmentDefinitionId: params.id,
+        scoringVersion: body.scoringVersion,
+        metadata: body.metadata,
+      },
     );
 
     return reply.code(201).send(created);
@@ -156,7 +200,11 @@ export const registerManagementRoutes = (app: FastifyInstance) => {
 
     const cloned = await cloneAssessmentVersion(
       { assessmentWriteRepository: app.repositories.assessmentWriteRepository },
-      { sourceVersionId: params.id, scoringVersion: body.scoringVersion },
+      {
+        sourceVersionId: params.id,
+        scoringVersion: body.scoringVersion,
+        ...(body.metadata ? { metadata: body.metadata } : {}),
+      },
     );
 
     return reply.code(201).send(cloned);
