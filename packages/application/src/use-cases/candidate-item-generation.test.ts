@@ -38,7 +38,7 @@ function assertIsDuplicateSource(
 }
 
 const toCandidateItemIntakeMetadata = (
-  value: Record<string, unknown>,
+  value: CandidateItemIntakeMetadata,
 ): CandidateItemIntakeMetadata => {
   const normalizationVersion = value.normalizationVersion;
   const duplicateScreeningVersion = value.duplicateScreeningVersion;
