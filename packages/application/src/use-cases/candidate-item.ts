@@ -20,6 +20,17 @@ const candidateItemSchema = z.object({
   contextApplicability: z.array(z.enum(['work', 'private', 'generic'])).min(1),
   disambiguationTags: z.array(z.string().min(1)).default([]),
   uncertaintyProfile: z.string().min(1).optional(),
+  adaptiveEligible: z.boolean().default(false),
+  itemPoolGroupIds: z.array(z.string().min(1)).default([]),
+  routingTags: z.array(z.string().min(1)).default([]),
+  uncertaintyTargetAreas: z.array(z.string().min(1)).default([]),
+  calibration: z
+    .object({
+      informationValue: z.number().optional(),
+      discrimination: z.number().optional(),
+      difficulty: z.number().optional(),
+    })
+    .optional(),
   aiGenerated: z.boolean().default(false),
   aiModel: z.string().min(1).optional(),
   aiPromptVersion: z.string().min(1).optional(),
@@ -61,6 +72,10 @@ export const createCandidateItem = async (
     role: parsed.role,
     contextApplicability: parsed.contextApplicability,
     disambiguationTags: parsed.disambiguationTags,
+    adaptiveEligible: parsed.adaptiveEligible,
+    itemPoolGroupIds: parsed.itemPoolGroupIds,
+    routingTags: parsed.routingTags,
+    uncertaintyTargetAreas: parsed.uncertaintyTargetAreas,
     aiGenerated: parsed.aiGenerated,
     ...(parsed.mirrorCandidateItemId !== undefined
       ? { mirrorCandidateItemId: parsed.mirrorCandidateItemId }
@@ -68,6 +83,7 @@ export const createCandidateItem = async (
     ...(parsed.uncertaintyProfile !== undefined
       ? { uncertaintyProfile: parsed.uncertaintyProfile }
       : {}),
+    ...(parsed.calibration !== undefined ? { calibration: parsed.calibration } : {}),
     ...(parsed.aiModel !== undefined ? { aiModel: parsed.aiModel } : {}),
     ...(parsed.aiPromptVersion !== undefined ? { aiPromptVersion: parsed.aiPromptVersion } : {}),
     ...(parsed.aiRationale !== undefined ? { aiRationale: parsed.aiRationale } : {}),
@@ -140,6 +156,17 @@ const generationBatchSchema = z.object({
         contextApplicability: z.array(z.enum(['work', 'private', 'generic'])).min(1),
         disambiguationTags: z.array(z.string().min(1)).default([]),
         uncertaintyProfile: z.string().min(1).optional(),
+        adaptiveEligible: z.boolean().default(true),
+        itemPoolGroupIds: z.array(z.string().min(1)).default([]),
+        routingTags: z.array(z.string().min(1)).default([]),
+        uncertaintyTargetAreas: z.array(z.string().min(1)).default([]),
+        calibration: z
+          .object({
+            informationValue: z.number().optional(),
+            discrimination: z.number().optional(),
+            difficulty: z.number().optional(),
+          })
+          .optional(),
         aiGenerated: z.boolean().default(true),
         aiModel: z.string().min(1),
         aiPromptVersion: z.string().min(1),
@@ -175,6 +202,9 @@ const jaccardSimilarity = (left: Set<string>, right: Set<string>): number => {
   const union = new Set([...left, ...right]).size;
   return union === 0 ? 0 : intersection / union;
 };
+
+const dedupeTrimmed = (values: string[]): string[] =>
+  Array.from(new Set(values.map((value) => value.trim()))).filter((value) => value.length > 0);
 
 export const importCandidateItemGenerationBatch = async (
   deps: { candidateItemRepository: CandidateItemRepository },
@@ -280,16 +310,19 @@ export const importCandidateItemGenerationBatch = async (
       reverseKeyed: rawItem.reverseKeyed,
       role: rawItem.role,
       contextApplicability: Array.from(new Set(rawItem.contextApplicability)),
-      disambiguationTags: Array.from(new Set(rawItem.disambiguationTags.map((tag) => tag.trim()))).filter(
-        (tag) => tag.length > 0,
-      ),
+      disambiguationTags: dedupeTrimmed(rawItem.disambiguationTags),
+      adaptiveEligible: rawItem.adaptiveEligible,
+      itemPoolGroupIds: dedupeTrimmed(rawItem.itemPoolGroupIds),
+      routingTags: dedupeTrimmed(rawItem.routingTags),
+      uncertaintyTargetAreas: dedupeTrimmed(rawItem.uncertaintyTargetAreas),
       ...(rawItem.uncertaintyProfile ? { uncertaintyProfile: rawItem.uncertaintyProfile.trim() } : {}),
+      ...(rawItem.calibration ? { calibration: rawItem.calibration } : {}),
       aiGenerated: rawItem.aiGenerated,
       aiModel: rawItem.aiModel.trim(),
       aiPromptVersion: rawItem.aiPromptVersion.trim(),
       ...(rawItem.aiRationale ? { aiRationale: rawItem.aiRationale.trim() } : {}),
       ...(rawItem.aiConfidence !== undefined ? { aiConfidence: rawItem.aiConfidence } : {}),
-      aiSuggestedAlternatives: rawItem.aiSuggestedAlternatives.map((entry) => entry.trim()),
+      aiSuggestedAlternatives: rawItem.aiSuggestedAlternatives.map((entry: string) => entry.trim()),
       generationBatchId: createdBatch.id,
       intakeMetadata: {
         normalizationVersion: ITEM_INTAKE_NORMALIZATION_VERSION,

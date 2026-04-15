@@ -13,16 +13,33 @@ const createAssessmentDefinitionSchema = z.object({
   key: z.string().min(2),
   name: z.string().min(2),
   description: z.string().optional(),
+  productLine: z.string().min(2).default('disc'),
 });
 
 const createAssessmentVersionSchema = z.object({
   assessmentDefinitionId: z.string().uuid(),
   scoringVersion: z.string().min(1),
+  metadata: z.object({
+    assessmentVersionKey: z.string().min(3),
+    tier: z.enum(['free', 'standard', 'deep']),
+    intendedUse: z.string().min(3),
+    contextFrame: z.string().min(3).optional(),
+    expectedItemCount: z.number().int().positive(),
+    expectedCompletionTimeMinutes: z.number().int().positive(),
+    form: z.enum(['fixed_form', 'future_adaptive_ready']),
+    adaptive: z.object({
+      adaptiveEligible: z.boolean(),
+      itemPoolGroupIds: z.array(z.string().min(1)).default([]),
+      uncertaintyTargetAreas: z.array(z.string().min(1)).default([]),
+      routingTags: z.array(z.string().min(1)).default([]),
+    }),
+  }),
 });
 
 const cloneVersionSchema = z.object({
   sourceVersionId: z.string().uuid(),
   scoringVersion: z.string().min(1),
+  metadata: createAssessmentVersionSchema.shape.metadata.optional(),
 });
 
 export interface PublishAssessmentVersionResult {
@@ -33,19 +50,24 @@ export interface PublishAssessmentVersionResult {
 
 export const createAssessmentDefinition = async (
   deps: { assessmentWriteRepository: AssessmentWriteRepository },
-  input: { key: string; name: string; description?: string },
+  input: { key: string; name: string; description?: string; productLine?: string },
 ) => {
   const parsed = createAssessmentDefinitionSchema.parse(input);
   return deps.assessmentWriteRepository.createAssessmentDefinition({
     key: parsed.key,
     name: parsed.name,
+    productLine: parsed.productLine,
     ...(parsed.description !== undefined ? { description: parsed.description } : {}),
   });
 };
 
 export const createAssessmentVersion = async (
   deps: { assessmentWriteRepository: AssessmentWriteRepository },
-  input: { assessmentDefinitionId: UUID; scoringVersion: string },
+  input: {
+    assessmentDefinitionId: UUID;
+    scoringVersion: string;
+    metadata: z.input<typeof createAssessmentVersionSchema>['metadata'];
+  },
 ) => {
   return deps.assessmentWriteRepository.createAssessmentVersionDraft(
     createAssessmentVersionSchema.parse(input),
@@ -54,7 +76,11 @@ export const createAssessmentVersion = async (
 
 export const cloneAssessmentVersion = async (
   deps: { assessmentWriteRepository: AssessmentWriteRepository },
-  input: { sourceVersionId: UUID; scoringVersion: string },
+  input: {
+    sourceVersionId: UUID;
+    scoringVersion: string;
+    metadata?: z.input<typeof cloneVersionSchema>['metadata'];
+  },
 ) => {
   return deps.assessmentWriteRepository.cloneAssessmentVersion(cloneVersionSchema.parse(input));
 };

@@ -96,6 +96,7 @@ model ApiKey {
 model AssessmentDefinition {
   id          String   @id @default(uuid())
   tenantId    String
+  productLine String   @default("disc")
   key         String
   name        String
   description String?
@@ -117,6 +118,14 @@ model AssessmentVersion {
   assessmentDefinitionId String
   versionNumber          Int
   scoringVersion         String
+  assessmentVersionKey   String
+  tier                   String
+  intendedUse            String
+  contextFrame           String?
+  expectedItemCount      Int
+  expectedCompletionTimeMinutes Int
+  form                   String
+  adaptiveMetadata       Json
   status                 AssessmentVersionStatus @default(draft)
   questionCount          Int
   createdAt              DateTime @default(now())
@@ -134,6 +143,7 @@ model AssessmentVersion {
   promotedCandidateItems CandidateItem[]
 
   @@unique([assessmentDefinitionId, versionNumber])
+  @@unique([tenantId, assessmentVersionKey])
 }
 
 model Question {
@@ -341,6 +351,11 @@ model CandidateItem {
   contextApplicability        String[]
   disambiguationTags          String[] @default([])
   uncertaintyProfile          String?
+  adaptiveEligible            Boolean  @default(false)
+  itemPoolGroupIds            String[] @default([])
+  routingTags                 String[] @default([])
+  uncertaintyTargetAreas      String[] @default([])
+  calibration                 Json?
   aiGenerated                 Boolean  @default(false)
   aiModel                     String?
   aiPromptVersion             String?

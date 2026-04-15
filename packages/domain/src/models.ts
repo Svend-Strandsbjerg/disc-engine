@@ -7,8 +7,30 @@ export interface AssessmentDefinition {
   key: string;
   name: string;
   description?: string;
+  productLine: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export type AssessmentTier = 'free' | 'standard' | 'deep';
+export type AssessmentForm = 'fixed_form' | 'future_adaptive_ready';
+
+export interface AdaptiveVersionMetadata {
+  adaptiveEligible: boolean;
+  itemPoolGroupIds: string[];
+  uncertaintyTargetAreas: string[];
+  routingTags: string[];
+}
+
+export interface AssessmentVersionMetadata {
+  assessmentVersionKey: string;
+  tier: AssessmentTier;
+  intendedUse: string;
+  contextFrame?: string;
+  expectedItemCount: number;
+  expectedCompletionTimeMinutes: number;
+  form: AssessmentForm;
+  adaptive: AdaptiveVersionMetadata;
 }
 
 export type QuestionType = 'single_choice' | 'multi_choice' | 'scale' | 'text';
@@ -59,6 +81,7 @@ export interface AssessmentVersion {
   assessmentDefinitionId: UUID;
   versionNumber: number;
   scoringVersion: string;
+  metadata: AssessmentVersionMetadata;
   status: AssessmentVersionStatus;
   questionCount: number;
   createdAt: Date;
@@ -162,6 +185,15 @@ export interface CandidateItem {
   contextApplicability: ContextApplicability[];
   disambiguationTags: string[];
   uncertaintyProfile?: string;
+  adaptiveEligible: boolean;
+  itemPoolGroupIds: string[];
+  routingTags: string[];
+  uncertaintyTargetAreas: string[];
+  calibration?: {
+    informationValue?: number;
+    discrimination?: number;
+    difficulty?: number;
+  };
   aiMetadata: CandidateItemAiMetadata;
   generationBatchId?: UUID;
   intakeMetadata?: CandidateItemIntakeMetadata;
