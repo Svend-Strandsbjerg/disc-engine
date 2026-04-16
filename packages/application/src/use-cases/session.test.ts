@@ -91,6 +91,7 @@ const createAssessmentReadRepositoryMock = (
 ): AssessmentReadRepository => ({
   getVersion: async () => buildVersion(),
   getActivePublishedVersion: async () => buildVersion(),
+  listLatestPublishedVersionsByDefinitionKeys: async () => [],
   ...overrides,
 });
 

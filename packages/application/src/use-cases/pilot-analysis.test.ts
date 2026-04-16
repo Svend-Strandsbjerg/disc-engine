@@ -77,6 +77,7 @@ const assessmentVersion: AssessmentVersion = {
 const assessmentReadRepository: AssessmentReadRepository = {
   getVersion: async () => assessmentVersion,
   getActivePublishedVersion: async () => assessmentVersion,
+  listLatestPublishedVersionsByDefinitionKeys: async () => [],
 };
 
 const resultQueryRepository: ResultQueryRepository = {
