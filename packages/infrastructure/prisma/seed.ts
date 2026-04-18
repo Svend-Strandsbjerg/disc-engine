@@ -221,6 +221,124 @@ const buildQuestionBank = (count: number) => {
 };
 
 const ITEM_BANK = buildQuestionBank(96);
+type BankItem = (typeof ITEM_BANK)[number];
+
+const selectCuratedItems = (codes: readonly string[]): BankItem[] => {
+  const selected = codes.map((code) => {
+    const item = ITEM_BANK.find((candidate) => candidate.code === code);
+    if (!item) {
+      throw new Error(`Curated composition references unknown item code: ${code}`);
+    }
+    return item;
+  });
+
+  const seen = new Set<string>();
+  for (const item of selected) {
+    if (seen.has(item.code)) {
+      throw new Error(`Curated composition contains duplicate item code: ${item.code}`);
+    }
+    seen.add(item.code);
+  }
+
+  return selected.map((item, index) => ({ ...item, order: index + 1 }));
+};
+
+const FREE_16_CODES = [
+  'Q1',
+  'Q2',
+  'Q3',
+  'Q4',
+  'Q5',
+  'Q6',
+  'Q7',
+  'Q8',
+  'Q17',
+  'Q18',
+  'Q19',
+  'Q20',
+  'Q21',
+  'Q22',
+  'Q23',
+  'Q24',
+] as const;
+
+const STANDARD_30_CODES = [
+  ...FREE_16_CODES,
+  'Q25',
+  'Q26',
+  'Q27',
+  'Q28',
+  'Q29',
+  'Q30',
+  'Q33',
+  'Q34',
+  'Q35',
+  'Q36',
+  'Q37',
+  'Q38',
+  'Q39',
+  'Q40',
+] as const;
+
+const DEEP_80_CODES = Array.from({ length: 80 }, (_, index) => `Q${index + 1}`);
+
+const summarizeComposition = (questions: BankItem[]) => {
+  const axisDistribution = {
+    tempo: questions.filter((question) => question.axis === 'tempo').length,
+    focus: questions.filter((question) => question.axis === 'focus').length,
+    axisDirection: {
+      highTempo: questions.filter((question) => question.axisDirection === 'highTempo').length,
+      lowTempo: questions.filter((question) => question.axisDirection === 'lowTempo').length,
+      peopleFocus: questions.filter((question) => question.axisDirection === 'peopleFocus').length,
+      taskFocus: questions.filter((question) => question.axisDirection === 'taskFocus').length,
+    },
+  };
+  const roleDistribution = {
+    core: questions.filter((question) => question.role === 'core').length,
+    mirror: questions.filter((question) => question.role === 'mirror').length,
+    tiebreaker: questions.filter((question) => question.role === 'tiebreaker').length,
+  };
+  const reverseKeyedCount = questions.filter((question) => question.reverseScored).length;
+  const mirroredItems = questions.filter((question) => question.mirrorOf);
+  const selectedCodes = new Set(questions.map((question) => question.code));
+  const completeMirrorPairs = mirroredItems.filter(
+    (question) => question.mirrorOf && selectedCodes.has(question.mirrorOf),
+  ).length;
+  const tiebreakerByAxisDirection = {
+    highTempo: questions.filter(
+      (question) => question.role === 'tiebreaker' && question.axisDirection === 'highTempo',
+    ).length,
+    lowTempo: questions.filter(
+      (question) => question.role === 'tiebreaker' && question.axisDirection === 'lowTempo',
+    ).length,
+    peopleFocus: questions.filter(
+      (question) => question.role === 'tiebreaker' && question.axisDirection === 'peopleFocus',
+    ).length,
+    taskFocus: questions.filter(
+      (question) => question.role === 'tiebreaker' && question.axisDirection === 'taskFocus',
+    ).length,
+  };
+
+  return {
+    itemCount: questions.length,
+    axisDistribution,
+    roleDistribution,
+    reverseKeyedCount,
+    mirrorCoverage: {
+      mirroredItems: mirroredItems.length,
+      completeMirrorPairs,
+      missingMirrorAnchor: mirroredItems.length - completeMirrorPairs,
+    },
+    tiebreakerCoverage: {
+      count: roleDistribution.tiebreaker,
+      byAxisDirection: tiebreakerByAxisDirection,
+    },
+  };
+};
+
+const FREE_16_ITEMS = selectCuratedItems(FREE_16_CODES);
+const STANDARD_30_ITEMS = selectCuratedItems(STANDARD_30_CODES);
+const DEEP_80_ITEMS = selectCuratedItems(DEEP_80_CODES);
 
 const assessmentVersions: Array<{
   id: string;
@@ -240,6 +358,7 @@ const assessmentVersions: Array<{
       uncertaintyTargetAreas: string[];
       routingTags: string[];
     };
+    compositionSummary: ReturnType<typeof summarizeComposition>;
   };
   questions: typeof ITEM_BANK;
 }> = [
@@ -261,8 +380,9 @@ const assessmentVersions: Array<{
         uncertaintyTargetAreas: ['top-dimension-confidence'],
         routingTags: ['screening'],
       },
+      compositionSummary: summarizeComposition(FREE_16_ITEMS),
     },
-    questions: ITEM_BANK.slice(0, 16),
+    questions: FREE_16_ITEMS,
   },
   {
     id: STANDARD_VERSION_ID,
@@ -282,8 +402,9 @@ const assessmentVersions: Array<{
         uncertaintyTargetAreas: ['secondary-dimension-separation', 'mirror-consistency'],
         routingTags: ['standard', 'expanded'],
       },
+      compositionSummary: summarizeComposition(STANDARD_30_ITEMS),
     },
-    questions: ITEM_BANK.slice(0, 30),
+    questions: STANDARD_30_ITEMS,
   },
   {
     id: DEEP_VERSION_ID,
@@ -307,8 +428,9 @@ const assessmentVersions: Array<{
         ],
         routingTags: ['deep', 'stability', 'future-cat-routing'],
       },
+      compositionSummary: summarizeComposition(DEEP_80_ITEMS),
     },
-    questions: ITEM_BANK.slice(0, 80),
+    questions: DEEP_80_ITEMS,
   },
 ];
 
