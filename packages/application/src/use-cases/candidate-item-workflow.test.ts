@@ -153,8 +153,6 @@ test('runs the authoring workflow end-to-end and promotes approved candidates to
       ...sourceVersion,
       id: clonedVersionId,
       status: 'draft',
-      immutableAt: undefined,
-      publishedAt: undefined,
       versionNumber: 3,
       scoringVersion: input.scoringVersion,
       metadata: input.metadata ?? sourceVersion.metadata,
