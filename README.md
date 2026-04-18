@@ -77,6 +77,82 @@ CAT-readiness (without CAT runtime yet):
 - Candidate items now carry adaptive placeholders (eligibility, pool grouping, routing/disambiguation tags, uncertainty targets, calibration placeholder).
 - Runtime remains fixed-form and deterministic; no adaptive routing/scoring logic has been introduced yet.
 
+## Candidate-item authoring workflow (standard tier, end-to-end)
+
+You can now run the first practical content workflow end-to-end with one internal endpoint:
+
+- `POST /internal/candidate-item-workflows/authoring-run`
+
+What it does in one run:
+
+1. Imports a generation batch for a specific source version/tier (for example `disc-standard-30`)
+2. Normalizes each prompt and runs duplicate screening against candidate + promoted corpora
+3. Stores fully structured candidate items (prompt, axis, direction, weight, reverseKeyed, role, mirror metadata when present, AI metadata/rationale)
+4. Applies reviewer scoring + status updates
+5. Clones the chosen source version into a new draft (leaving live published versions untouched)
+6. Promotes approved candidates into that new draft version
+
+Minimal workflow payload shape:
+
+```json
+{
+  "sourceAssessmentVersionId": "00000000-0000-0000-0000-000000000222",
+  "targetTier": "standard",
+  "draftScoringVersion": "disc-v2-standard-30-draft-candidates-1",
+  "generationBatch": {
+    "generationId": "wf-gen-001",
+    "sourceType": "ai_assistant",
+    "modelName": "gpt-5.3",
+    "promptVersion": "disc-standard-authoring-v1",
+    "context": "work",
+    "items": [
+      {
+        "prompt": "I naturally move projects forward even when plans are incomplete.",
+        "axis": "tempo",
+        "axisDirection": "highTempo",
+        "weight": 1,
+        "reverseKeyed": false,
+        "role": "core",
+        "contextApplicability": ["work"],
+        "disambiguationTags": ["initiative", "execution"],
+        "uncertaintyProfile": "distinguish-D-vs-I",
+        "adaptiveEligible": true,
+        "itemPoolGroupIds": ["expanded-coverage"],
+        "routingTags": ["standard", "expanded"],
+        "uncertaintyTargetAreas": ["secondary-dimension-separation"],
+        "aiGenerated": true,
+        "aiModel": "gpt-5.3",
+        "aiPromptVersion": "disc-standard-authoring-v1",
+        "aiRationale": "Targets proactive tempo without explicit dominance wording.",
+        "aiConfidence": 0.86,
+        "aiSuggestedAlternatives": []
+      }
+    ]
+  },
+  "reviews": [
+    {
+      "itemIndex": 0,
+      "clarityScore": 0.92,
+      "ambiguityRisk": 0.16,
+      "doubleBarreledRisk": 0.08,
+      "socialDesirabilityRisk": 0.22,
+      "discriminationPotential": 0.85,
+      "mirrorUsefulness": 0.7,
+      "overlapRisk": 0.19,
+      "status": "approved",
+      "reviewerNotes": "Strong standard-tier signal."
+    }
+  ]
+}
+```
+
+Response includes:
+
+- import summary with duplicate flags/matches
+- review summary
+- newly created draft version
+- promoted question mapping (`candidateItemId -> questionId/questionCode`)
+
 
 ## Draft content editing
 

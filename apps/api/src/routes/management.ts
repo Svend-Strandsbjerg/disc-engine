@@ -12,6 +12,7 @@ import {
   importCandidateItemGenerationBatch,
   publishAssessmentVersion,
   promoteCandidateItemsToDraftVersion,
+  runCandidateItemAuthoringWorkflow,
   reviewCandidateItem,
   listCandidateItems,
   validateAssessmentVersion,
@@ -160,6 +161,35 @@ const importGenerationBatchSchema = z.object({
     )
     .min(1)
     .max(200),
+});
+
+const workflowReviewSchema = z
+  .object({
+    itemIndex: z.number().int().min(0).optional(),
+    candidateItemId: z.string().uuid().optional(),
+    clarityScore: z.number().min(0).max(1),
+    ambiguityRisk: z.number().min(0).max(1),
+    doubleBarreledRisk: z.number().min(0).max(1),
+    socialDesirabilityRisk: z.number().min(0).max(1),
+    discriminationPotential: z.number().min(0).max(1),
+    mirrorUsefulness: z.number().min(0).max(1),
+    overlapRisk: z.number().min(0).max(1),
+    reviewerNotes: z.string().optional(),
+    status: z.enum(['candidate', 'needs_revision', 'approved', 'rejected']),
+    nearDuplicateQuestionIds: z.array(z.string().uuid()).optional(),
+  })
+  .refine((value) => value.itemIndex !== undefined || value.candidateItemId !== undefined, {
+    message: 'Each review must include itemIndex or candidateItemId',
+  });
+
+const runAuthoringWorkflowSchema = z.object({
+  sourceAssessmentVersionId: z.string().uuid(),
+  targetTier: z.enum(['free', 'standard', 'deep']).default('standard'),
+  draftScoringVersion: z.string().min(1),
+  draftMetadata: createVersionSchema.shape.metadata.optional(),
+  generationBatch: importGenerationBatchSchema.omit({ targetAssessmentDefinitionId: true }),
+  reviews: z.array(workflowReviewSchema).min(1),
+  candidateItemIdsForPromotion: z.array(z.string().uuid()).optional(),
 });
 
 export const registerManagementRoutes = (app: FastifyInstance) => {
@@ -356,6 +386,31 @@ export const registerManagementRoutes = (app: FastifyInstance) => {
           disambiguationTags: item.disambiguationTags ?? [],
           aiSuggestedAlternatives: item.aiSuggestedAlternatives ?? [],
         })),
+      },
+    );
+
+    return reply.code(201).send(result);
+  });
+
+  app.post('/internal/candidate-item-workflows/authoring-run', async (request, reply) => {
+    const body = runAuthoringWorkflowSchema.parse(request.body);
+
+    const result = await runCandidateItemAuthoringWorkflow(
+      {
+        candidateItemRepository: app.repositories.candidateItemRepository,
+        assessmentReadRepository: app.repositories.assessmentReadRepository,
+        assessmentWriteRepository: app.repositories.assessmentWriteRepository,
+      },
+      {
+        ...body,
+        generationBatch: {
+          ...body.generationBatch,
+          items: body.generationBatch.items.map((item) => ({
+            ...item,
+            disambiguationTags: item.disambiguationTags ?? [],
+            aiSuggestedAlternatives: item.aiSuggestedAlternatives ?? [],
+          })),
+        },
       },
     );
 
