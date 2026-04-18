@@ -5,7 +5,7 @@
     "buildCommand": "rm -rf apps/api/dist packages/application/dist packages/domain/dist packages/infrastructure/dist packages/shared/dist && pnpm prisma:generate && pnpm -r build"
   },
   "deploy": {
-    "startCommand": "pnpm prisma:db:push && pnpm --filter @disc-foundation/api start",
+    "startCommand": "pnpm --filter @disc-foundation/api start",
     "healthcheckPath": "/health",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
