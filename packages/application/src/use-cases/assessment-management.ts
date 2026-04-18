@@ -69,9 +69,24 @@ export const createAssessmentVersion = async (
     metadata: z.input<typeof createAssessmentVersionSchema>['metadata'];
   },
 ) => {
-  return deps.assessmentWriteRepository.createAssessmentVersionDraft(
-    createAssessmentVersionSchema.parse(input),
-  );
+  const parsed = createAssessmentVersionSchema.parse(input);
+
+  return deps.assessmentWriteRepository.createAssessmentVersionDraft({
+    assessmentDefinitionId: parsed.assessmentDefinitionId,
+    scoringVersion: parsed.scoringVersion,
+    metadata: {
+      assessmentVersionKey: parsed.metadata.assessmentVersionKey,
+      tier: parsed.metadata.tier,
+      intendedUse: parsed.metadata.intendedUse,
+      ...(parsed.metadata.contextFrame !== undefined
+        ? { contextFrame: parsed.metadata.contextFrame }
+        : {}),
+      expectedItemCount: parsed.metadata.expectedItemCount,
+      expectedCompletionTimeMinutes: parsed.metadata.expectedCompletionTimeMinutes,
+      form: parsed.metadata.form,
+      adaptive: parsed.metadata.adaptive,
+    },
+  });
 };
 
 export const cloneAssessmentVersion = async (
@@ -82,7 +97,28 @@ export const cloneAssessmentVersion = async (
     metadata?: z.input<typeof cloneVersionSchema>['metadata'];
   },
 ) => {
-  return deps.assessmentWriteRepository.cloneAssessmentVersion(cloneVersionSchema.parse(input));
+  const parsed = cloneVersionSchema.parse(input);
+
+  return deps.assessmentWriteRepository.cloneAssessmentVersion({
+    sourceVersionId: parsed.sourceVersionId,
+    scoringVersion: parsed.scoringVersion,
+    ...(parsed.metadata !== undefined
+      ? {
+          metadata: {
+            assessmentVersionKey: parsed.metadata.assessmentVersionKey,
+            tier: parsed.metadata.tier,
+            intendedUse: parsed.metadata.intendedUse,
+            ...(parsed.metadata.contextFrame !== undefined
+              ? { contextFrame: parsed.metadata.contextFrame }
+              : {}),
+            expectedItemCount: parsed.metadata.expectedItemCount,
+            expectedCompletionTimeMinutes: parsed.metadata.expectedCompletionTimeMinutes,
+            form: parsed.metadata.form,
+            adaptive: parsed.metadata.adaptive,
+          },
+        }
+      : {}),
+  });
 };
 
 export const validateAssessmentVersion = async (
