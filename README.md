@@ -152,6 +152,7 @@ Response includes:
 - review summary
 - newly created draft version
 - promoted question mapping (`candidateItemId -> questionId/questionCode`)
+- short internal run summary (`sourceVersion`, `newDraftVersion`, imported/approved/rejected/promoted counts, rough axis/role distribution)
 
 
 ## Draft content editing

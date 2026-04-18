@@ -303,6 +303,16 @@ test('runs the authoring workflow end-to-end and promotes approved candidates to
   assert.equal(result.reviewSummary.reviewedItems, 2);
   assert.equal(result.reviewSummary.approvedItems, 1);
   assert.equal(result.promotionSummary.promotedItems, 1);
+  assert.equal(result.internalSummary.sourceVersion, 'disc-standard-30');
+  assert.equal(result.internalSummary.newDraftVersion, 'disc-standard-30');
+  assert.equal(result.internalSummary.importedCandidates, 2);
+  assert.equal(result.internalSummary.approved, 1);
+  assert.equal(result.internalSummary.rejected, 0);
+  assert.equal(result.internalSummary.promoted, 1);
+  assert.equal(result.internalSummary.distribution.approvedByAxisDirection.highTempo, 1);
+  assert.equal(result.internalSummary.distribution.approvedByRole.core, 1);
+  assert.equal(result.internalSummary.distribution.promotedByAxisDirection.highTempo, 1);
+  assert.equal(result.internalSummary.distribution.promotedByRole.core, 1);
   assert.equal(result.draftVersion.id, clonedVersionId);
   assert.equal(result.draftVersion.status, 'draft');
 });
