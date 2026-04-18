@@ -58,6 +58,19 @@ export const createCandidateItem = async (
   input: z.input<typeof candidateItemSchema>,
 ) => {
   const parsed = candidateItemSchema.parse(input);
+  const calibration = parsed.calibration
+    ? {
+        ...(parsed.calibration.informationValue !== undefined
+          ? { informationValue: parsed.calibration.informationValue }
+          : {}),
+        ...(parsed.calibration.discrimination !== undefined
+          ? { discrimination: parsed.calibration.discrimination }
+          : {}),
+        ...(parsed.calibration.difficulty !== undefined
+          ? { difficulty: parsed.calibration.difficulty }
+          : {}),
+      }
+    : undefined;
   if (parsed.role === 'mirror' && !parsed.mirrorCandidateItemId) {
     throw new Error('Mirror candidate items must reference a paired candidate item');
   }
@@ -83,7 +96,7 @@ export const createCandidateItem = async (
     ...(parsed.uncertaintyProfile !== undefined
       ? { uncertaintyProfile: parsed.uncertaintyProfile }
       : {}),
-    ...(parsed.calibration !== undefined ? { calibration: parsed.calibration } : {}),
+    ...(calibration !== undefined && Object.keys(calibration).length > 0 ? { calibration } : {}),
     ...(parsed.aiModel !== undefined ? { aiModel: parsed.aiModel } : {}),
     ...(parsed.aiPromptVersion !== undefined ? { aiPromptVersion: parsed.aiPromptVersion } : {}),
     ...(parsed.aiRationale !== undefined ? { aiRationale: parsed.aiRationale } : {}),
@@ -289,6 +302,19 @@ export const importCandidateItemGenerationBatch = async (
     const obviousDuplicate =
       matches.some((entry) => entry.obviousDuplicate) || seenFingerprints.has(fingerprint);
     const likelyDuplicate = obviousDuplicate || matches.some((entry) => entry.similarityScore >= 0.85);
+    const calibration = rawItem.calibration
+      ? {
+          ...(rawItem.calibration.informationValue !== undefined
+            ? { informationValue: rawItem.calibration.informationValue }
+            : {}),
+          ...(rawItem.calibration.discrimination !== undefined
+            ? { discrimination: rawItem.calibration.discrimination }
+            : {}),
+          ...(rawItem.calibration.difficulty !== undefined
+            ? { difficulty: rawItem.calibration.difficulty }
+            : {}),
+        }
+      : undefined;
 
     if (obviousDuplicate) {
       results.push({
@@ -316,7 +342,7 @@ export const importCandidateItemGenerationBatch = async (
       routingTags: dedupeTrimmed(rawItem.routingTags),
       uncertaintyTargetAreas: dedupeTrimmed(rawItem.uncertaintyTargetAreas),
       ...(rawItem.uncertaintyProfile ? { uncertaintyProfile: rawItem.uncertaintyProfile.trim() } : {}),
-      ...(rawItem.calibration ? { calibration: rawItem.calibration } : {}),
+      ...(calibration !== undefined && Object.keys(calibration).length > 0 ? { calibration } : {}),
       aiGenerated: rawItem.aiGenerated,
       aiModel: rawItem.aiModel.trim(),
       aiPromptVersion: rawItem.aiPromptVersion.trim(),
