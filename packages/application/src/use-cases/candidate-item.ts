@@ -265,6 +265,10 @@ const jaccardSimilarity = (left: Set<string>, right: Set<string>): number => {
 const dedupeTrimmed = (values: string[]): string[] =>
   Array.from(new Set(values.map((value) => value.trim()))).filter((value) => value.length > 0);
 
+const incrementBucket = (bucket: Record<string, number>, key: string) => {
+  bucket[key] = (bucket[key] ?? 0) + 1;
+};
+
 export const importCandidateItemGenerationBatch = async (
   deps: { candidateItemRepository: CandidateItemRepository },
   input: z.input<typeof generationBatchSchema>,
@@ -468,6 +472,7 @@ export const runCandidateItemAuthoringWorkflow = async (
   input: z.input<typeof runAuthoringWorkflowSchema>,
 ) => {
   const parsed = runAuthoringWorkflowSchema.parse(input);
+  const sourceItemsByIndex = new Map(parsed.generationBatch.items.map((item, index) => [index, item]));
   const sourceVersion = await deps.assessmentReadRepository.getVersion(parsed.sourceAssessmentVersionId);
   if (!sourceVersion) {
     throw new Error('Source assessment version not found');
@@ -496,9 +501,23 @@ export const runCandidateItemAuthoringWorkflow = async (
   );
 
   const importedIdsByIndex = new Map<number, UUID>();
+  const importedItemsByCandidateId = new Map<
+    UUID,
+    {
+      axis: (typeof parsed.generationBatch.items)[number]['axis'];
+      axisDirection: (typeof parsed.generationBatch.items)[number]['axisDirection'];
+      role: (typeof parsed.generationBatch.items)[number]['role'];
+    }
+  >();
   for (const result of batchResult.results) {
-    if (result.candidateItemId) {
+    const sourceItem = sourceItemsByIndex.get(result.index);
+    if (result.candidateItemId && sourceItem) {
       importedIdsByIndex.set(result.index, result.candidateItemId);
+      importedItemsByCandidateId.set(result.candidateItemId, {
+        axis: sourceItem.axis,
+        axisDirection: sourceItem.axisDirection,
+        role: sourceItem.role,
+      });
     }
   }
 
@@ -548,6 +567,34 @@ export const runCandidateItemAuthoringWorkflow = async (
     candidateItemIds: candidateItemIdsForPromotion,
   });
 
+  const approvedByAxisDirection: Record<string, number> = {};
+  const approvedByRole: Record<string, number> = {};
+  const rejectedByAxisDirection: Record<string, number> = {};
+  const rejectedByRole: Record<string, number> = {};
+  const promotedByAxisDirection: Record<string, number> = {};
+  const promotedByRole: Record<string, number> = {};
+
+  for (const review of reviewResults) {
+    const source = importedItemsByCandidateId.get(review.candidateItemId);
+    if (!source) continue;
+    if (review.status === 'approved') {
+      incrementBucket(approvedByAxisDirection, source.axisDirection);
+      incrementBucket(approvedByRole, source.role);
+      continue;
+    }
+    if (review.status === 'rejected') {
+      incrementBucket(rejectedByAxisDirection, source.axisDirection);
+      incrementBucket(rejectedByRole, source.role);
+    }
+  }
+
+  for (const promotedItem of promoted) {
+    const source = importedItemsByCandidateId.get(promotedItem.candidateItemId);
+    if (!source) continue;
+    incrementBucket(promotedByAxisDirection, source.axisDirection);
+    incrementBucket(promotedByRole, source.role);
+  }
+
   return {
     sourceVersion: {
       id: sourceVersion.id,
@@ -571,6 +618,22 @@ export const runCandidateItemAuthoringWorkflow = async (
     promotionSummary: {
       promotedItems: promoted.length,
       promoted,
+    },
+    internalSummary: {
+      sourceVersion: sourceVersion.metadata.assessmentVersionKey,
+      newDraftVersion: clonedDraft.metadata.assessmentVersionKey,
+      importedCandidates: batchResult.importedItems,
+      approved: reviewResults.filter((review) => review.status === 'approved').length,
+      rejected: reviewResults.filter((review) => review.status === 'rejected').length,
+      promoted: promoted.length,
+      distribution: {
+        approvedByAxisDirection,
+        approvedByRole,
+        rejectedByAxisDirection,
+        rejectedByRole,
+        promotedByAxisDirection,
+        promotedByRole,
+      },
     },
     draftVersion: clonedDraft,
   };
