@@ -556,10 +556,18 @@ export const runCandidateItemAuthoringWorkflow = async (
     throw new Error('No approved candidate items available for promotion');
   }
 
+  const draftMetadata =
+    parsed.draftMetadata !== undefined
+      ? (({ contextFrame, ...rest }) => ({
+          ...rest,
+          ...(contextFrame !== undefined ? { contextFrame } : {}),
+        }))(parsed.draftMetadata)
+      : undefined;
+
   const clonedDraft = await deps.assessmentWriteRepository.cloneAssessmentVersion({
     sourceVersionId: sourceVersion.id,
     scoringVersion: parsed.draftScoringVersion,
-    ...(parsed.draftMetadata !== undefined ? { metadata: parsed.draftMetadata } : {}),
+    ...(draftMetadata !== undefined ? { metadata: draftMetadata } : {}),
   });
 
   const promoted = await deps.candidateItemRepository.promoteApprovedCandidates({
