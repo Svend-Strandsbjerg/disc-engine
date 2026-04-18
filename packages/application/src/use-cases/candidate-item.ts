@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type {
   AssessmentReadRepository,
+  AssessmentWriteRepository,
   CandidateItemRepository,
 } from '../ports/repositories.js';
 import type { UUID } from '@disc-foundation/shared';
@@ -190,6 +191,51 @@ const generationBatchSchema = z.object({
     )
     .min(1)
     .max(200),
+});
+
+const workflowReviewSchema = z
+  .object({
+    itemIndex: z.number().int().min(0).optional(),
+    candidateItemId: z.string().uuid().optional(),
+    clarityScore: z.number().min(0).max(1),
+    ambiguityRisk: z.number().min(0).max(1),
+    doubleBarreledRisk: z.number().min(0).max(1),
+    socialDesirabilityRisk: z.number().min(0).max(1),
+    discriminationPotential: z.number().min(0).max(1),
+    mirrorUsefulness: z.number().min(0).max(1),
+    overlapRisk: z.number().min(0).max(1),
+    reviewerNotes: z.string().optional(),
+    status: z.enum(['candidate', 'needs_revision', 'approved', 'rejected']),
+    nearDuplicateQuestionIds: z.array(z.string().uuid()).optional(),
+  })
+  .refine((value) => value.itemIndex !== undefined || value.candidateItemId !== undefined, {
+    message: 'Each review must include itemIndex or candidateItemId',
+  });
+
+const runAuthoringWorkflowSchema = z.object({
+  sourceAssessmentVersionId: z.string().uuid(),
+  targetTier: z.enum(['free', 'standard', 'deep']).default('standard'),
+  draftScoringVersion: z.string().min(1),
+  draftMetadata: z
+    .object({
+      assessmentVersionKey: z.string().min(3),
+      tier: z.enum(['free', 'standard', 'deep']),
+      intendedUse: z.string().min(3),
+      contextFrame: z.string().min(3).optional(),
+      expectedItemCount: z.number().int().positive(),
+      expectedCompletionTimeMinutes: z.number().int().positive(),
+      form: z.enum(['fixed_form', 'future_adaptive_ready']),
+      adaptive: z.object({
+        adaptiveEligible: z.boolean(),
+        itemPoolGroupIds: z.array(z.string().min(1)).default([]),
+        uncertaintyTargetAreas: z.array(z.string().min(1)).default([]),
+        routingTags: z.array(z.string().min(1)).default([]),
+      }),
+    })
+    .optional(),
+  generationBatch: generationBatchSchema.omit({ targetAssessmentDefinitionId: true }),
+  reviews: z.array(workflowReviewSchema).min(1),
+  candidateItemIdsForPromotion: z.array(z.string().uuid()).optional(),
 });
 
 const normalizePrompt = (value: string): string =>
@@ -411,4 +457,121 @@ export const promoteCandidateItemsToDraftVersion = async (
     assessmentVersionId: input.assessmentVersionId,
     candidateItemIds: input.candidateItemIds,
   });
+};
+
+export const runCandidateItemAuthoringWorkflow = async (
+  deps: {
+    candidateItemRepository: CandidateItemRepository;
+    assessmentReadRepository: AssessmentReadRepository;
+    assessmentWriteRepository: AssessmentWriteRepository;
+  },
+  input: z.input<typeof runAuthoringWorkflowSchema>,
+) => {
+  const parsed = runAuthoringWorkflowSchema.parse(input);
+  const sourceVersion = await deps.assessmentReadRepository.getVersion(parsed.sourceAssessmentVersionId);
+  if (!sourceVersion) {
+    throw new Error('Source assessment version not found');
+  }
+
+  if (sourceVersion.metadata.tier !== parsed.targetTier) {
+    throw new Error(
+      `Source assessment version tier '${sourceVersion.metadata.tier}' does not match target tier '${parsed.targetTier}'`,
+    );
+  }
+
+  const batchResult = await importCandidateItemGenerationBatch(
+    { candidateItemRepository: deps.candidateItemRepository },
+    {
+      ...parsed.generationBatch,
+      targetAssessmentDefinitionId: sourceVersion.assessmentDefinitionId,
+      rationaleNotes: [
+        parsed.generationBatch.rationaleNotes?.trim(),
+        `targetVersionId=${sourceVersion.id}`,
+        `targetVersionKey=${sourceVersion.metadata.assessmentVersionKey}`,
+        `targetTier=${sourceVersion.metadata.tier}`,
+      ]
+        .filter((entry): entry is string => !!entry && entry.length > 0)
+        .join(' | '),
+    },
+  );
+
+  const importedIdsByIndex = new Map<number, UUID>();
+  for (const result of batchResult.results) {
+    if (result.candidateItemId) {
+      importedIdsByIndex.set(result.index, result.candidateItemId);
+    }
+  }
+
+  const reviewResults = await Promise.all(
+    parsed.reviews.map(async (review) => {
+      const candidateItemId = review.candidateItemId ?? importedIdsByIndex.get(review.itemIndex ?? -1);
+      if (!candidateItemId) {
+        throw new Error(`Review item could not be resolved to a candidate item id (itemIndex=${review.itemIndex ?? 'n/a'})`);
+      }
+
+      return deps.candidateItemRepository.createCandidateItemReview({
+        candidateItemId,
+        clarityScore: review.clarityScore,
+        ambiguityRisk: review.ambiguityRisk,
+        doubleBarreledRisk: review.doubleBarreledRisk,
+        socialDesirabilityRisk: review.socialDesirabilityRisk,
+        discriminationPotential: review.discriminationPotential,
+        mirrorUsefulness: review.mirrorUsefulness,
+        overlapRisk: review.overlapRisk,
+        status: review.status,
+        ...(review.reviewerNotes !== undefined ? { reviewerNotes: review.reviewerNotes } : {}),
+        ...(review.nearDuplicateQuestionIds !== undefined
+          ? { nearDuplicateQuestionIds: review.nearDuplicateQuestionIds }
+          : {}),
+      });
+    }),
+  );
+
+  const explicitlySelectedIds = new Set(parsed.candidateItemIdsForPromotion ?? []);
+  const approvedFromWorkflow = reviewResults
+    .filter((review) => review.status === 'approved')
+    .map((review) => review.candidateItemId);
+  const candidateItemIdsForPromotion = Array.from(new Set([...approvedFromWorkflow, ...explicitlySelectedIds]));
+
+  if (candidateItemIdsForPromotion.length === 0) {
+    throw new Error('No approved candidate items available for promotion');
+  }
+
+  const clonedDraft = await deps.assessmentWriteRepository.cloneAssessmentVersion({
+    sourceVersionId: sourceVersion.id,
+    scoringVersion: parsed.draftScoringVersion,
+    ...(parsed.draftMetadata !== undefined ? { metadata: parsed.draftMetadata } : {}),
+  });
+
+  const promoted = await deps.candidateItemRepository.promoteApprovedCandidates({
+    assessmentVersionId: clonedDraft.id,
+    candidateItemIds: candidateItemIdsForPromotion,
+  });
+
+  return {
+    sourceVersion: {
+      id: sourceVersion.id,
+      assessmentDefinitionId: sourceVersion.assessmentDefinitionId,
+      assessmentVersionKey: sourceVersion.metadata.assessmentVersionKey,
+      tier: sourceVersion.metadata.tier,
+      status: sourceVersion.status,
+    },
+    generationBatch: batchResult.generationBatch,
+    importSummary: {
+      totalItems: batchResult.totalItems,
+      importedItems: batchResult.importedItems,
+      rejectedObviousDuplicates: batchResult.rejectedObviousDuplicates,
+      results: batchResult.results,
+    },
+    reviewSummary: {
+      reviewedItems: reviewResults.length,
+      approvedItems: reviewResults.filter((review) => review.status === 'approved').length,
+      reviewResults,
+    },
+    promotionSummary: {
+      promotedItems: promoted.length,
+      promoted,
+    },
+    draftVersion: clonedDraft,
+  };
 };
