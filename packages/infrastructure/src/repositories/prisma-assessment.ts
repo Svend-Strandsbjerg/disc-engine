@@ -409,16 +409,16 @@ export class PrismaAssessmentRepository implements AssessmentReadRepository, Ass
     return record ? mapVersion(record) : null;
   }
 
-  async listLatestPublishedVersionsByDefinitionKeys(definitionKeys: string[]): Promise<
+  async listLatestPublishedVersionsByVersionKeys(versionKeys: string[]): Promise<
     Array<{
       assessmentDefinitionId: UUID;
-      assessmentDefinitionKey: string;
+      assessmentVersionKey: string;
       assessmentVersionId: UUID;
       versionNumber: number;
       publishedAt?: Date;
     }>
   > {
-    if (definitionKeys.length === 0) {
+    if (versionKeys.length === 0) {
       return [];
     }
 
@@ -427,13 +427,10 @@ export class PrismaAssessmentRepository implements AssessmentReadRepository, Ass
       where: {
         tenantId,
         status: 'published',
-        assessmentDefinition: {
-          key: { in: definitionKeys },
-          tenantId,
-        },
+        assessmentVersionKey: { in: versionKeys },
       },
       orderBy: [
-        { assessmentDefinitionId: 'asc' },
+        { assessmentVersionKey: 'asc' },
         { versionNumber: 'desc' },
         { publishedAt: 'desc' },
       ],
@@ -442,26 +439,22 @@ export class PrismaAssessmentRepository implements AssessmentReadRepository, Ass
         versionNumber: true,
         publishedAt: true,
         assessmentDefinitionId: true,
-        assessmentDefinition: {
-          select: {
-            key: true,
-          },
-        },
+        assessmentVersionKey: true,
       },
     });
 
-    const latestByDefinitionKey = new Map<string, (typeof records)[number]>();
+    const latestByVersionKey = new Map<string, (typeof records)[number]>();
     for (const record of records) {
-      const definitionKey = record.assessmentDefinition.key;
-      if (latestByDefinitionKey.has(definitionKey)) {
+      const versionKey = record.assessmentVersionKey;
+      if (latestByVersionKey.has(versionKey)) {
         continue;
       }
-      latestByDefinitionKey.set(definitionKey, record);
+      latestByVersionKey.set(versionKey, record);
     }
 
-    return [...latestByDefinitionKey.values()].map((record) => ({
+    return [...latestByVersionKey.values()].map((record) => ({
       assessmentDefinitionId: record.assessmentDefinitionId,
-      assessmentDefinitionKey: record.assessmentDefinition.key,
+      assessmentVersionKey: record.assessmentVersionKey,
       assessmentVersionId: record.id,
       versionNumber: record.versionNumber,
       ...(record.publishedAt ? { publishedAt: record.publishedAt } : {}),

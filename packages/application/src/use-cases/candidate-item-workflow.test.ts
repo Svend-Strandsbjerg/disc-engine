@@ -139,7 +139,7 @@ test('runs the authoring workflow end-to-end and promotes approved candidates to
   const assessmentReadRepository: AssessmentReadRepository = {
     getVersion: async (versionId) => (versionId === sourceVersionId ? sourceVersion : null),
     getActivePublishedVersion: async () => null,
-    listLatestPublishedVersionsByDefinitionKeys: async () => [],
+    listLatestPublishedVersionsByVersionKeys: async () => [],
   };
 
   const assessmentWriteRepository: AssessmentWriteRepository = {

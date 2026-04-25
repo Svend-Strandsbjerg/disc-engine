@@ -2,6 +2,7 @@ import type { AssessmentReadRepository } from '../ports/repositories.js';
 import type { UUID } from '@disc-foundation/shared';
 
 const DISC_PRODUCT_LINE = 'disc' as const;
+const DISC_SEED_INSTRUCTIONS = 'Run `pnpm prisma:seed` to provision the baseline DISC versions.';
 
 const DISC_VERSION_DEFINITIONS = [
   {
@@ -61,29 +62,37 @@ export const listDiscProductVersions = async (deps: {
   assessmentReadRepository: AssessmentReadRepository;
 }) => {
   const versionRecords =
-    await deps.assessmentReadRepository.listLatestPublishedVersionsByDefinitionKeys(
+    await deps.assessmentReadRepository.listLatestPublishedVersionsByVersionKeys(
       DISC_VERSION_DEFINITIONS.map((definition) => definition.versionKey),
     );
 
-  const byKey = new Map(versionRecords.map((record) => [record.assessmentDefinitionKey, record]));
+  const byKey = new Map(versionRecords.map((record) => [record.assessmentVersionKey, record]));
+
+  const versions = DISC_VERSION_DEFINITIONS.flatMap((definition) => {
+    const record = byKey.get(definition.versionKey);
+    if (!record) {
+      return [];
+    }
+
+    return {
+      key: definition.versionKey,
+      tier: definition.tier,
+      assessmentVersionId: record.assessmentVersionId,
+      itemCount: definition.itemCount,
+      estimatedCompletionMinutes: definition.estimatedCompletionMinutes,
+      intendedUse: definition.intendedUse,
+      deliveryMode: definition.deliveryMode,
+    };
+  });
+
+  if (versions.length === 0) {
+    throw new Error(
+      `No published DISC assessment versions are available for product line "${DISC_PRODUCT_LINE}". ${DISC_SEED_INSTRUCTIONS}`,
+    );
+  }
 
   return {
     productLine: DISC_PRODUCT_LINE,
-    versions: DISC_VERSION_DEFINITIONS.flatMap((definition) => {
-      const record = byKey.get(definition.versionKey);
-      if (!record) {
-        return [];
-      }
-
-      return {
-        key: definition.versionKey,
-        tier: definition.tier,
-        assessmentVersionId: record.assessmentVersionId,
-        itemCount: definition.itemCount,
-        estimatedCompletionMinutes: definition.estimatedCompletionMinutes,
-        intendedUse: definition.intendedUse,
-        deliveryMode: definition.deliveryMode,
-      };
-    }),
+    versions,
   };
 };

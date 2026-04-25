@@ -228,7 +228,7 @@ const result: ProfileResult = {
 const assessmentReadRepository: AssessmentReadRepository = {
   getVersion: async () => assessmentVersion,
   getActivePublishedVersion: async () => assessmentVersion,
-  listLatestPublishedVersionsByDefinitionKeys: async () => [],
+  listLatestPublishedVersionsByVersionKeys: async () => [],
 };
 
 const assessmentSessionRepository: AssessmentSessionRepository = {
