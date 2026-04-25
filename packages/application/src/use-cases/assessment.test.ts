@@ -8,31 +8,31 @@ const createAssessmentReadRepositoryMock = (
 ): AssessmentReadRepository => ({
   getVersion: async () => null,
   getActivePublishedVersion: async () => null,
-  listLatestPublishedVersionsByDefinitionKeys: async () => [],
+  listLatestPublishedVersionsByVersionKeys: async () => [],
   ...overrides,
 });
 
 test('listDiscProductVersions lists published DISC tiers with frontend metadata', async () => {
   const result = await listDiscProductVersions({
     assessmentReadRepository: createAssessmentReadRepositoryMock({
-      listLatestPublishedVersionsByDefinitionKeys: async () => [
+      listLatestPublishedVersionsByVersionKeys: async () => [
         {
           assessmentDefinitionId: '00000000-0000-0000-0000-000000000101',
-          assessmentDefinitionKey: 'disc-free-16',
+          assessmentVersionKey: 'disc-free-16',
           assessmentVersionId: '00000000-0000-0000-0000-000000000201',
           versionNumber: 4,
           publishedAt: new Date('2026-03-01T00:00:00.000Z'),
         },
         {
           assessmentDefinitionId: '00000000-0000-0000-0000-000000000102',
-          assessmentDefinitionKey: 'disc-standard-30',
+          assessmentVersionKey: 'disc-standard-30',
           assessmentVersionId: '00000000-0000-0000-0000-000000000202',
           versionNumber: 2,
           publishedAt: new Date('2026-03-02T00:00:00.000Z'),
         },
         {
           assessmentDefinitionId: '00000000-0000-0000-0000-000000000103',
-          assessmentDefinitionKey: 'disc-deep-80',
+          assessmentVersionKey: 'disc-deep-80',
           assessmentVersionId: '00000000-0000-0000-0000-000000000203',
           versionNumber: 1,
           publishedAt: new Date('2026-03-03T00:00:00.000Z'),
@@ -78,10 +78,10 @@ test('listDiscProductVersions lists published DISC tiers with frontend metadata'
 test('listDiscProductVersions excludes unpublished or unavailable tiers', async () => {
   const result = await listDiscProductVersions({
     assessmentReadRepository: createAssessmentReadRepositoryMock({
-      listLatestPublishedVersionsByDefinitionKeys: async () => [
+      listLatestPublishedVersionsByVersionKeys: async () => [
         {
           assessmentDefinitionId: '00000000-0000-0000-0000-000000000102',
-          assessmentDefinitionKey: 'disc-standard-30',
+          assessmentVersionKey: 'disc-standard-30',
           assessmentVersionId: '00000000-0000-0000-0000-000000000202',
           versionNumber: 3,
           publishedAt: new Date('2026-03-02T00:00:00.000Z'),
@@ -109,17 +109,17 @@ test('listDiscProductVersions excludes unpublished or unavailable tiers', async 
 test('listDiscProductVersions keeps deterministic order regardless of repository order', async () => {
   const result = await listDiscProductVersions({
     assessmentReadRepository: createAssessmentReadRepositoryMock({
-      listLatestPublishedVersionsByDefinitionKeys: async () => [
+      listLatestPublishedVersionsByVersionKeys: async () => [
         {
           assessmentDefinitionId: '00000000-0000-0000-0000-000000000103',
-          assessmentDefinitionKey: 'disc-deep-80',
+          assessmentVersionKey: 'disc-deep-80',
           assessmentVersionId: '00000000-0000-0000-0000-000000000203',
           versionNumber: 1,
           publishedAt: new Date('2026-03-03T00:00:00.000Z'),
         },
         {
           assessmentDefinitionId: '00000000-0000-0000-0000-000000000101',
-          assessmentDefinitionKey: 'disc-free-16',
+          assessmentVersionKey: 'disc-free-16',
           assessmentVersionId: '00000000-0000-0000-0000-000000000201',
           versionNumber: 1,
           publishedAt: new Date('2026-03-01T00:00:00.000Z'),
@@ -134,5 +134,17 @@ test('listDiscProductVersions keeps deterministic order regardless of repository
       { key: 'disc-free-16', tier: 'free' },
       { key: 'disc-deep-80', tier: 'deep' },
     ],
+  );
+});
+
+test('listDiscProductVersions fails clearly when no DISC versions are published', async () => {
+  await assert.rejects(
+    () =>
+      listDiscProductVersions({
+        assessmentReadRepository: createAssessmentReadRepositoryMock({
+          listLatestPublishedVersionsByVersionKeys: async () => [],
+        }),
+      }),
+    /No published DISC assessment versions are available/,
   );
 });
