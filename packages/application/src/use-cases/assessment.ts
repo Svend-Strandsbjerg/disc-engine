@@ -4,6 +4,15 @@ import type { UUID } from '@disc-foundation/shared';
 const DISC_PRODUCT_LINE = 'disc' as const;
 const DISC_SEED_INSTRUCTIONS = 'Run `pnpm prisma:seed` to provision the baseline DISC versions.';
 
+export class DiscVersionDiscoverySetupError extends Error {
+  readonly code = 'DISC_VERSION_DISCOVERY_SETUP_ERROR' as const;
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'DiscVersionDiscoverySetupError';
+  }
+}
+
 const DISC_VERSION_DEFINITIONS = [
   {
     versionKey: 'disc-free-16',
@@ -86,7 +95,7 @@ export const listDiscProductVersions = async (deps: {
   });
 
   if (versions.length === 0) {
-    throw new Error(
+    throw new DiscVersionDiscoverySetupError(
       `No published DISC assessment versions are available for product line "${DISC_PRODUCT_LINE}". ${DISC_SEED_INSTRUCTIONS}`,
     );
   }
