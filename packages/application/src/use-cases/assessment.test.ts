@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { AssessmentReadRepository } from '../ports/repositories.js';
-import { listDiscProductVersions } from './assessment.js';
+import { DiscVersionDiscoverySetupError, listDiscProductVersions } from './assessment.js';
 
 const createAssessmentReadRepositoryMock = (
   overrides: Partial<AssessmentReadRepository> = {},
@@ -145,6 +145,13 @@ test('listDiscProductVersions fails clearly when no DISC versions are published'
           listLatestPublishedVersionsByVersionKeys: async () => [],
         }),
       }),
-    /No published DISC assessment versions are available/,
+    (error: unknown) => {
+      assert.ok(error instanceof DiscVersionDiscoverySetupError);
+      assert.match(
+        error.message,
+        /No published DISC assessment versions are available/,
+      );
+      return true;
+    },
   );
 });
