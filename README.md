@@ -489,6 +489,28 @@ pnpm start
 
 This is intended as an initial bootstrap path until formal Prisma migrations are introduced.
 
+
+## Railway deployed DB repair (P2021: `ApiKey` missing)
+
+When the deployed API returns `P2021` for `/products/disc/versions`, the deployed service is connected to a PostgreSQL database where the Prisma schema was never applied (or was applied to a different database).
+
+1. In Railway, open the **DISC engine service** → **Variables** and copy `DATABASE_URL`.
+2. Verify the URL points at the intended Railway Postgres instance (host, database name, and project/environment must match your production DB).
+3. Run the repair script from repo root using that exact URL:
+
+```bash
+export DATABASE_URL='postgresql://...'
+./scripts/railway-db-repair.sh
+```
+
+The script will:
+- choose `prisma migrate deploy` if baseline table-creation migrations exist;
+- otherwise run `prisma db push` (current repo bootstrap path);
+- run Prisma seed;
+- verify required tables and required DISC version keys (`disc-free-16`, `disc-standard-30`, `disc-deep-80`) plus bootstrap API key.
+
+After this succeeds, `GET /products/disc/versions` should return `200`.
+
 ## Workspace scripts
 
 ```bash
