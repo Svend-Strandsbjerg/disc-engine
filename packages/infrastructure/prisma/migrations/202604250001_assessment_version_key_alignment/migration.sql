@@ -36,16 +36,48 @@ BEGIN
   END IF;
 END $$;
 
-UPDATE "AssessmentVersion"
-SET "assessmentVersionKey" = COALESCE(
-  NULLIF("assessmentVersionKey", ''),
-  NULLIF("adaptiveMetadata"->>'assessmentVersionKey', ''),
-  CONCAT('assessment-version-', "id")
-)
-WHERE "assessmentVersionKey" IS NULL OR "assessmentVersionKey" = '';
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'AssessmentVersion'
+      AND column_name = 'adaptiveMetadata'
+  ) THEN
+    EXECUTE $SQL$
+      UPDATE "AssessmentVersion"
+      SET "assessmentVersionKey" = COALESCE(
+        NULLIF("assessmentVersionKey", ''),
+        NULLIF("adaptiveMetadata"->>'assessmentVersionKey', ''),
+        CONCAT('assessment-version-', "id")
+      )
+      WHERE "assessmentVersionKey" IS NULL OR "assessmentVersionKey" = ''
+    $SQL$;
+  ELSE
+    EXECUTE $SQL$
+      UPDATE "AssessmentVersion"
+      SET "assessmentVersionKey" = COALESCE(
+        NULLIF("assessmentVersionKey", ''),
+        CONCAT('assessment-version-', "id")
+      )
+      WHERE "assessmentVersionKey" IS NULL OR "assessmentVersionKey" = ''
+    $SQL$;
+  END IF;
+END $$;
 
-ALTER TABLE "AssessmentVersion"
-ALTER COLUMN "assessmentVersionKey" SET NOT NULL;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'AssessmentVersion'
+      AND column_name = 'assessmentVersionKey'
+  ) THEN
+    EXECUTE 'ALTER TABLE "AssessmentVersion" ALTER COLUMN "assessmentVersionKey" SET NOT NULL';
+  END IF;
+END $$;
 
 DO $$
 BEGIN
