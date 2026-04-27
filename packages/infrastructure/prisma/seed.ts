@@ -549,8 +549,8 @@ const syncVersionContent = async (
 async function main() {
   const apiKeyService = new ApiKeyService();
 
-  await prisma.tenant.upsert({
-    where: { id: TENANT_ID },
+  const tenant = await prisma.tenant.upsert({
+    where: { externalId: 'default' },
     update: { name: 'Default Tenant' },
     create: {
       id: TENANT_ID,
@@ -559,15 +559,14 @@ async function main() {
     },
   });
 
-  await prisma.assessmentDefinition.upsert({
+  const assessmentDefinition = await prisma.assessmentDefinition.upsert({
     where: {
       tenantId_key: {
-        tenantId: TENANT_ID,
+        tenantId: tenant.id,
         key: 'disc-core',
       },
     },
     update: {
-      id: ASSESSMENT_ID,
       productLine: 'disc',
       name: 'DISC Structured Product Line',
       description:
@@ -575,7 +574,7 @@ async function main() {
     },
     create: {
       id: ASSESSMENT_ID,
-      tenantId: TENANT_ID,
+      tenantId: tenant.id,
       productLine: 'disc',
       key: 'disc-core',
       name: 'DISC Structured Product Line',
@@ -584,12 +583,19 @@ async function main() {
     },
   });
 
+  const persistedVersionIdsByKey = new Map<string, string>();
+
   for (const version of assessmentVersions) {
-    await prisma.assessmentVersion.upsert({
-      where: { id: version.id },
+    const persistedVersion = await prisma.assessmentVersion.upsert({
+      where: {
+        tenantId_assessmentVersionKey: {
+          tenantId: tenant.id,
+          assessmentVersionKey: version.metadata.assessmentVersionKey,
+        },
+      },
       update: {
-        tenantId: TENANT_ID,
-        assessmentDefinitionId: ASSESSMENT_ID,
+        tenantId: tenant.id,
+        assessmentDefinitionId: assessmentDefinition.id,
         scoringVersion: version.scoringVersion,
         assessmentVersionKey: version.metadata.assessmentVersionKey,
         tier: version.metadata.tier,
@@ -607,8 +613,8 @@ async function main() {
       },
       create: {
         id: version.id,
-        tenantId: TENANT_ID,
-        assessmentDefinitionId: ASSESSMENT_ID,
+        tenantId: tenant.id,
+        assessmentDefinitionId: assessmentDefinition.id,
         scoringVersion: version.scoringVersion,
         assessmentVersionKey: version.metadata.assessmentVersionKey,
         tier: version.metadata.tier,
@@ -625,10 +631,11 @@ async function main() {
         immutableAt: new Date(),
       },
     });
+    persistedVersionIdsByKey.set(version.metadata.assessmentVersionKey, persistedVersion.id);
 
     await prisma.scoreDimension.deleteMany({
       where: {
-        assessmentVersionId: version.id,
+        assessmentVersionId: persistedVersion.id,
         key: { notIn: DIMENSIONS.map((dimension) => dimension.key) },
       },
     });
@@ -637,7 +644,7 @@ async function main() {
       await prisma.scoreDimension.upsert({
         where: {
           assessmentVersionId_key: {
-            assessmentVersionId: version.id,
+            assessmentVersionId: persistedVersion.id,
             key: dimension.key,
           },
         },
@@ -646,7 +653,7 @@ async function main() {
           order: dimension.order,
         },
         create: {
-          assessmentVersionId: version.id,
+          assessmentVersionId: persistedVersion.id,
           key: dimension.key,
           label: dimension.label,
           order: dimension.order,
@@ -654,32 +661,35 @@ async function main() {
       });
     }
 
-    await syncVersionContent(version.id, version.questions, version.scoringVersion);
+    await syncVersionContent(persistedVersion.id, version.questions, version.scoringVersion);
   }
 
-  const existingBootstrapKeys = await prisma.apiKey.findMany({
+  const existingBootstrapKey = await prisma.apiKey.findFirst({
     where: {
-      tenantId: TENANT_ID,
+      tenantId: tenant.id,
       name: INITIAL_API_KEY_NAME,
     },
     select: { id: true },
   });
 
-  if (existingBootstrapKeys.length > 0) {
-    await prisma.apiKey.deleteMany({
-      where: {
-        id: { in: existingBootstrapKeys.map((key) => key.id) },
-      },
-    });
+  const createdBootstrapApiKey = existingBootstrapKey
+    ? null
+    : await apiKeyService.createApiKey({
+        tenantId: tenant.id,
+        name: INITIAL_API_KEY_NAME,
+      });
+  const bootstrapApiKeyId = existingBootstrapKey?.id ?? createdBootstrapApiKey?.apiKey.id;
+  if (!bootstrapApiKeyId) {
+    throw new Error('Seed invariant violated: missing bootstrap API key id.');
   }
 
-  const bootstrapApiKey = await apiKeyService.createApiKey({
-    tenantId: TENANT_ID,
-    name: INITIAL_API_KEY_NAME,
-  });
+  const standardVersionId = persistedVersionIdsByKey.get('disc-standard-30');
+  if (!standardVersionId) {
+    throw new Error('Seed invariant violated: missing persisted disc-standard-30 assessment version.');
+  }
 
   const existingIterationDraft = await prisma.assessmentVersion.findFirst({
-    where: { tenantId: TENANT_ID, assessmentVersionKey: STANDARD_DRAFT_ITERATION_VERSION_KEY },
+    where: { tenantId: tenant.id, assessmentVersionKey: STANDARD_DRAFT_ITERATION_VERSION_KEY },
     select: { id: true, assessmentVersionKey: true },
   });
 
@@ -688,7 +698,7 @@ async function main() {
     const candidateItemRepository = new PrismaCandidateItemRepository();
 
     const workflowResult = await runWithAccessContext(
-      { tenantId: TENANT_ID, apiKeyId: bootstrapApiKey.apiKey.id },
+      { tenantId: tenant.id, apiKeyId: bootstrapApiKeyId },
       async () =>
         runCandidateItemAuthoringWorkflow(
           {
@@ -697,7 +707,7 @@ async function main() {
             assessmentWriteRepository: assessmentReadWriteRepository,
           },
           {
-            sourceAssessmentVersionId: STANDARD_VERSION_ID,
+            sourceAssessmentVersionId: standardVersionId,
             targetTier: 'standard',
             draftScoringVersion: STANDARD_DRAFT_ITERATION_SCORING_VERSION,
             draftMetadata: {
@@ -983,12 +993,21 @@ async function main() {
   }
 
   console.log('DISC assessment family seeded successfully');
-  console.log('Assessment definition id:', ASSESSMENT_ID);
+  console.log('Assessment definition id:', assessmentDefinition.id);
   console.log(
     'Assessment versions:',
-    assessmentVersions.map((version) => `${version.metadata.assessmentVersionKey}=${version.id}`).join(', '),
+    assessmentVersions
+      .map(
+        (version) =>
+          `${version.metadata.assessmentVersionKey}=${persistedVersionIdsByKey.get(version.metadata.assessmentVersionKey)}`,
+      )
+      .join(', '),
   );
-  console.log('Bootstrap API key (store securely):', bootstrapApiKey.plaintextKey);
+  if (createdBootstrapApiKey) {
+    console.log('Bootstrap API key (store securely):', createdBootstrapApiKey.plaintextKey);
+  } else {
+    console.log('Bootstrap API key already exists; seed reused existing key.');
+  }
 }
 
 main()
