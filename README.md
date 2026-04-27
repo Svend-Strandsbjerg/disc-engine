@@ -207,6 +207,27 @@ Internal scoring debug (opt-in):
 - endpoint is disabled by default and only available when `INTERNAL_SCORING_DEBUG_ENABLED=true`
 - returns per-question contribution traces, raw vs normalized D/I/S/C totals, primary/secondary dimensions, and sanity flags for flat/extreme response patterns
 
+## Railway dedicated database cutover (disc-engine only)
+
+When rotating `disc-engine` onto a clean dedicated PostgreSQL service in Railway:
+
+1. Point the `disc-engine` service `DATABASE_URL` to the new PostgreSQL service.
+2. Export `DATABASE_URL` in your shell to that new value.
+3. Optionally export `OLD_DATABASE_URL` to the previous polluted DB URL for cutover verification.
+4. Run:
+
+```bash
+bash scripts/railway-db-repair.sh
+```
+
+What this script does:
+
+- applies Prisma schema (`migrate deploy` when baseline migrations are present, otherwise `db push`)
+- runs seed
+- verifies required engine tables and seeded DISC versions (`disc-free-16`, `disc-standard-30`, `disc-deep-80`)
+- fails if polluted Strandsbjerg tables are found in the new dedicated DB
+- if `OLD_DATABASE_URL` is supplied, confirms old polluted tables still exist there (without mutating them)
+
 
 ## Read-model / reporting layer
 
